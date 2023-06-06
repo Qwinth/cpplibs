@@ -4,8 +4,8 @@
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
-#include "../cpplibs/anytype.hpp"
-#include "../cpplibs/strlib.hpp"
+#include "anytype.hpp"
+#include "strlib.hpp"
 
 struct arg_config {
     std::string flag1;
