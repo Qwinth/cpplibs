@@ -4,8 +4,8 @@
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
-#include "anytype.hpp"
-#include "strlib.hpp"
+#include "../cpplibs/anytype.hpp"
+#include "../cpplibs/strlib.hpp"
 
 struct arg_config {
     std::string flag1;
@@ -42,9 +42,7 @@ public:
         raw_args = std::vector<std::string>(argv, argv + argc);
     }
 
-    void add_argument(arg_config config, ...) {
-        va_list list;
-        va_start(list, config);
+    void add_argument(arg_config config) {
         args_config.push_back(config);
     }
 
@@ -60,38 +58,39 @@ public:
         for (int j = 0; j < args_config.size(); j++) {
             auto i = args_config[j];
             if (find_raw_args(i.flag1) >= 0 || find_raw_args(i.flag2) >= 0) {
-                std::string name = (find_raw_args(i.flag1) >= 0) ? i.flag1 : i.flag2;
+                std::string rawname = (find_raw_args(i.flag1) >= 0) ? i.flag1 : i.flag2;
+                std::string retname = (i.flag2.length() > 0) ? i.flag2 : i.flag1;
 
                 if (i.without_value) {
-                    parsed_args[name] = {"boolean", .boolean = true};
+                    parsed_args[retname] = {.type = "boolean", .boolean = true};
                 } else {
                     if (i.nargs) {
                         AnyType obj;
                         obj.type = "list";
 
-                        for (int k = find_raw_args(name) + 1; k < raw_args.size(); k++) {
+                        for (int k = find_raw_args(rawname) + 1; k < raw_args.size(); k++) {
                             if (find_argsconfig(raw_args[k]) >= 0) break;
-                            obj.list.push_back({"string", .str = raw_args[k]});
+                            obj.list.push_back({.type = "string", .str = raw_args[k]});
                         }
 
-                        parsed_args[name] = obj;
+                        parsed_args[retname] = obj;
 
                     } else {
-                        if (i.type == "string" && find_raw_args(name) + 1 < raw_args.size()) parsed_args[name] = {"string", .str = raw_args[find_raw_args(name) + 1]};
-                        else if (i.type == "int" && find_raw_args(name) + 1 < raw_args.size()) parsed_args[name] = {"int", .integer = stoll(raw_args[find_raw_args(name) + 1])};
-                        else if (i.type == "float" && find_raw_args(name) + 1 < raw_args.size()) parsed_args[name] = {"float", .lfloat = stold(raw_args[find_raw_args(name) + 1])};
-                        else if (i.type == "bool" && find_raw_args(name) + 1 < raw_args.size()) {
+                        if (i.type == "string" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = {.type = "string", .str = raw_args[find_raw_args(rawname) + 1]};
+                        else if (i.type == "int" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = {.type = "int", .integer = stoll(raw_args[find_raw_args(rawname) + 1])};
+                        else if (i.type == "float" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = {.type = "float", .lfloat = stold(raw_args[find_raw_args(rawname) + 1])};
+                        else if (i.type == "bool" && find_raw_args(rawname) + 1 < raw_args.size()) {
                             bool b;
-                            std::istringstream(raw_args[find_raw_args(name) + 1]) >> std::boolalpha >> b;
-                            parsed_args[name] = {"boolean", .boolean = b};
+                            std::istringstream(raw_args[find_raw_args(rawname) + 1]) >> std::boolalpha >> b;
+                            parsed_args[retname] = {.type = "boolean", .boolean = b};
                         } else {
-                            parsed_args[name] = {"string", "false"};
+                            parsed_args[retname] = {"string", "false"};
                         }
                     }
                 }
             } else {
-                if (i.flag1.length() > 0) parsed_args[i.flag1] = {"boolean", .str = "false", .boolean = false};
-                else if (i.flag2.length() > 0) parsed_args[i.flag2] = {"boolean", .str = "false", .boolean = false};
+                if (i.flag2.length() > 0) parsed_args[i.flag2] = {.type = "boolean", .str = "false", .boolean = false};
+                else if (i.flag1.length() > 0) parsed_args[i.flag1] = {.type = "boolean", .str = "false", .boolean = false};
             }
         }
 
