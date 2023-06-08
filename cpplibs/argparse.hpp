@@ -1,11 +1,12 @@
+// version 1.0
 #include <string>
 #include <vector>
 #include <map>
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
-#include "../cpplibs/anytype.hpp"
-#include "../cpplibs/strlib.hpp"
+#include "nytype.hpp"
+#include "strlib.hpp"
 
 struct arg_config {
     std::string flag1;
@@ -50,7 +51,7 @@ public:
 
         for (auto i : raw_args) {
             if (i.find("=") != i.npos && find_argsconfig(split(i, "=")[0]) >= 0 && split(i, "=").size() > 1) {
-                parsed_args[split(i, "=")[0]] = {"string", split(i, "=")[1]};
+                parsed_args[split(i, "=")[0]] = { "string", split(i, "=")[1] };
                 args_config.erase(args_config.begin() + find_argsconfig(split(i, "=")[0]));
             }
         }
@@ -62,7 +63,7 @@ public:
                 std::string retname = (i.flag2.length() > 0) ? i.flag2 : i.flag1;
 
                 if (i.without_value) {
-                    parsed_args[retname] = {.type = "boolean", .boolean = true};
+                    parsed_args[retname] = { .type = "boolean", .boolean = true };
                 } else {
                     if (i.nargs) {
                         AnyType obj;
@@ -70,27 +71,27 @@ public:
 
                         for (int k = find_raw_args(rawname) + 1; k < raw_args.size(); k++) {
                             if (find_argsconfig(raw_args[k]) >= 0) break;
-                            obj.list.push_back({.type = "string", .str = raw_args[k]});
+                            obj.list.push_back({ .type = "string", .str = raw_args[k] });
                         }
 
                         parsed_args[retname] = obj;
 
                     } else {
-                        if (i.type == "string" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = {.type = "string", .str = raw_args[find_raw_args(rawname) + 1]};
-                        else if (i.type == "int" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = {.type = "int", .integer = stoll(raw_args[find_raw_args(rawname) + 1])};
-                        else if (i.type == "float" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = {.type = "float", .lfloat = stold(raw_args[find_raw_args(rawname) + 1])};
+                        if (i.type == "string" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = { .type = "string", .str = raw_args[find_raw_args(rawname) + 1] };
+                        else if (i.type == "int" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = { .type = "int", .integer = stoll(raw_args[find_raw_args(rawname) + 1]) };
+                        else if (i.type == "float" && find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = { .type = "float", .lfloat = stold(raw_args[find_raw_args(rawname) + 1]) };
                         else if (i.type == "bool" && find_raw_args(rawname) + 1 < raw_args.size()) {
                             bool b;
                             std::istringstream(raw_args[find_raw_args(rawname) + 1]) >> std::boolalpha >> b;
-                            parsed_args[retname] = {.type = "boolean", .boolean = b};
+                            parsed_args[retname] = { .type = "boolean", .boolean = b };
                         } else {
-                            parsed_args[retname] = {"string", "false"};
+                            parsed_args[retname] = { "string", "false" };
                         }
                     }
                 }
             } else {
-                if (i.flag2.length() > 0) parsed_args[i.flag2] = {.type = "boolean", .str = "false", .boolean = false};
-                else if (i.flag1.length() > 0) parsed_args[i.flag1] = {.type = "boolean", .str = "false", .boolean = false};
+                if (i.flag2.length() > 0) parsed_args[i.flag2] = { .type = "boolean", .str = "false", .boolean = false };
+                else if (i.flag1.length() > 0) parsed_args[i.flag1] = { .type = "boolean", .str = "false", .boolean = false };
             }
         }
 
