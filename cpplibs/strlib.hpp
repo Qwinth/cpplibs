@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cstdint>
 #include <iomanip>
+#include <algorithm>
 
 std::string toUpper(std::string str) {
     std::string ret;
@@ -133,7 +134,7 @@ std::string wstrtostr(std::wstring wstr) {
     return str;
 }
 
-#if __cplusplus >= 199711L
+#if __cplusplus >= 202002L
 std::string u8tostr(std::u8string str) {
     return (char*)str.c_str();
 }
