@@ -9,6 +9,9 @@
 #include <iomanip>
 #include <algorithm>
 #include <iterator>
+#include <regex>
+#include <locale>
+#include <codecvt>
 
 struct Bytes {
     size_t length = 0;
@@ -154,10 +157,14 @@ std::string uuid4() {
     return ss.str();
 }
 
-std::string wstrtostr(std::wstring wstr) {
-    std::string str;
-    std::transform(wstr.begin(), wstr.end(), std::back_inserter(str), [](wchar_t c) { return (char)c; });
-    return str;
+std::wstring str2wstr(const std::string& utf8Str) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
+    return conv.from_bytes(utf8Str);
+}
+
+std::string wstr2str(const std::wstring& utf16Str) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
+    return conv.to_bytes(utf16Str);
 }
 
 #if __cplusplus >= 202002L || (_WIN32 && __cplusplus >= 199711L)
@@ -263,4 +270,34 @@ void replaceAll(std::string& source, const std::string& from, const std::string&
     newString += source.substr(lastPos);
 
     source.swap(newString);
+}
+
+std::string to_stringWp(long double arg, int precision) {
+    std::stringstream s;
+    s << std::setprecision(precision) << arg;
+    return s.str();
+}
+
+std::wstring decodeUnicodeSequence(const std::wstring& input) {
+    // Define the regular expression to find Unicode escape sequences.
+    std::wregex unicodeRegex(L"\\\\u([0-9a-fA-F]{4})");
+    
+    // Replace each Unicode escape sequence with its corresponding character.
+    std::wstring decodedString;
+    std::wsregex_iterator it(input.begin(), input.end(), unicodeRegex);
+    std::wsregex_iterator end;
+    size_t lastPos = 0;
+
+    while (it != end) {
+        decodedString.append(input, lastPos, it->position() - lastPos);
+        wchar_t unicodeChar = static_cast<wchar_t>(std::stoi(it->str(1), nullptr, 16));
+        decodedString.push_back(unicodeChar);
+        lastPos = it->position() + it->str().size();
+        ++it;
+    }
+
+    // Append the remaining characters after the last match.
+    decodedString.append(input, lastPos, input.size() - lastPos);
+    
+    return decodedString;
 }
