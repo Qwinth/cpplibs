@@ -140,6 +140,8 @@ class Json {
             }
         }
 
+        tmp = wstr2str(decodeUnicodeSequence(str2wstr(tmp)));
+
         return { { .type = ANYSTRING, .str = tmp }, i };
     }
 
