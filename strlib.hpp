@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <iterator>
 #include <regex>
-#include <locale>
 #include <codecvt>
 
 struct Bytes {
@@ -278,11 +277,10 @@ std::string to_stringWp(long double arg, int precision) {
     return s.str();
 }
 
-std::wstring decodeUnicodeSequence(const std::wstring& input) {
-    // Define the regular expression to find Unicode escape sequences.
+std::string decodeUnicodeSequence(const std::string& str) {
+    std::wstring input = str2wstr(str);
     std::wregex unicodeRegex(L"\\\\u([0-9a-fA-F]{4})");
     
-    // Replace each Unicode escape sequence with its corresponding character.
     std::wstring decodedString;
     std::wsregex_iterator it(input.begin(), input.end(), unicodeRegex);
     std::wsregex_iterator end;
@@ -296,8 +294,7 @@ std::wstring decodeUnicodeSequence(const std::wstring& input) {
         ++it;
     }
 
-    // Append the remaining characters after the last match.
     decodedString.append(input, lastPos, input.size() - lastPos);
     
-    return decodedString;
+    return wstr2str(decodedString);
 }
