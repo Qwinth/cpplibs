@@ -14,7 +14,7 @@ enum JsonTypes {
     JSONINTEGER,
     JSONFLOAT,
     JSONBOOLEAN,
-    JSONLIST,
+    JSONARRAY,
     JSONOBJECT
 };
 
@@ -25,10 +25,11 @@ public:
     long long integer = 0;
     long double lfloat = 0;
     bool boolean = false;
-    std::vector<JsonNode*> list;
-    std::map<std::string, JsonNode*> objects;
+    std::vector<JsonNode> array;
+    std::map<std::string, JsonNode> objects;
 
-    JsonNode operator[](std::string str) { return *objects[str]; }
+    JsonNode operator[](std::string str) { return objects[str]; }
+    JsonNode operator[](size_t num) { return array[num]; }
 
     bool is_null() { return type == JSONNULL; }
 
@@ -59,7 +60,7 @@ private:
         }
 
         case ANYLIST: {
-            for (AnyType* i : value.list) node.list.push_back(new JsonNode(AnyType_to_JsonNode(*i)));
+            for (AnyType* i : value.list) node.array.push_back(JsonNode(AnyType_to_JsonNode(*i)));
             break;
         }
         }
@@ -68,19 +69,21 @@ private:
     }
 
 public:
-    void addPair(std::string key, std::string value) { objects[key] = new JsonNode({.type = JSONSTRING, .str = value}); }
-    void addPair(std::string key, const char* value) { objects[key] = new JsonNode({.type = JSONSTRING, .str = value}); }
-    void addPair(std::string key, short value) { objects[key] = new JsonNode({.type = JSONINTEGER, .integer = value}); }
-    void addPair(std::string key, int value) { objects[key] = new JsonNode({.type = JSONINTEGER, .integer = value}); }
-    void addPair(std::string key, long value) { objects[key] = new JsonNode({.type = JSONINTEGER, .integer = value}); }
-    void addPair(std::string key, long long value) { objects[key] = new JsonNode({.type = JSONINTEGER, .integer = value}); }
-    void addPair(std::string key, float value) { objects[key] = new JsonNode({.type = JSONFLOAT, .lfloat = value}); }
-    void addPair(std::string key, double value) { objects[key] = new JsonNode({.type = JSONFLOAT, .lfloat = value}); }
-    void addPair(std::string key, long double value) { objects[key] = new JsonNode({.type = JSONFLOAT, .lfloat = value}); }
-    void addPair(std::string key, bool value) { objects[key] = new JsonNode({.type = JSONBOOLEAN, .boolean = value}); }
-    void addPair(std::string key, std::vector<JsonNode*> value) { objects[key] = new JsonNode({.type = JSONLIST, .list = value}); }
-    void addPair(std::string key, std::map<std::string, JsonNode*> value) { objects[key] = new JsonNode({.type = JSONOBJECT, .objects = value}); }
-    void addPair(std::string key, AnyType value) { objects[key] = new JsonNode(AnyType_to_JsonNode(value)); }
+    void addPair(std::string key, std::string value) { objects[key] = {.type = JSONSTRING, .str = value}; }
+    void addPair(std::string key, const char* value) { objects[key] = {.type = JSONSTRING, .str = value}; }
+    void addPair(std::string key, short value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
+    void addPair(std::string key, int value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
+    void addPair(std::string key, long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
+    void addPair(std::string key, long long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
+    void addPair(std::string key, float value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; }
+    void addPair(std::string key, double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; }
+    void addPair(std::string key, long double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; }
+    void addPair(std::string key, bool value) { objects[key] = {.type = JSONBOOLEAN, .boolean = value}; }
+    void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = {.type = JSONARRAY, .array = value}; }
+    void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = {.type = JSONOBJECT, .objects = value}; }
+    void addPair(std::string key, JsonNode value) { objects[key] = value; }
+    void addPair(std::string key, AnyType value) { objects[key] = (AnyType_to_JsonNode(value)); }
+    void arrayAppend(JsonNode value) { array.push_back(value); }
 };
 
 class Json {
@@ -99,8 +102,28 @@ class Json {
     }
 
     size_t getEndPos(std::string& str, size_t pos) {
-        size_t tmppos = str.find(',', pos);
-        return (tmppos != std::string::npos) ? tmppos : str.find('}', pos);
+        size_t tmppos = std::string::npos;
+        if ((tmppos = str.find(',', pos)) != std::string::npos) return tmppos;
+        else if ((tmppos = str.find('}', pos)) != std::string::npos) return tmppos;
+        else if ((tmppos = str.find(']', pos)) != std::string::npos) return tmppos;
+
+        return tmppos;
+    }
+
+    size_t getBrClosePos(std::string& str, size_t pos, char brOpen, char brClose) {
+        size_t i = pos;
+        int br = 0;
+
+        for (; i < str.size(); i++) {
+            char j = str[i];
+
+            if (j == brOpen) br++;
+            else if (j == brClose) br--;
+
+            if (br == 0) break;
+        }
+
+        return i;
     }
 
     bool is_float(std::string& str, size_t pos) {
@@ -115,15 +138,17 @@ class Json {
         return false;
     }
 
-    std::pair<AnyType, size_t> anyParse(std::string& str, size_t pos) {
+    std::pair<JsonNode, size_t> parseAny(std::string& str, size_t pos) {
         if (str[pos] == '"') return parseString(str, pos);
         else if (isdigit(str[pos]) && !is_float(str, pos)) return parseInt(str, pos);
         else if (isdigit(str[pos]) && is_float(str, pos)) return parseFloat(str, pos);
         else if (str[pos] == 't' || str[pos] == 'f') return parseBool(str, pos);
+        else if (str[pos] == '[') return parseArray(str, pos);
+        else if (str[pos] == '{') return parseObject(str, pos);
         return { {}, pos };
     }
 
-    std::pair<AnyType, size_t> parseString(std::string& str, size_t pos) {
+    std::pair<JsonNode, size_t> parseString(std::string& str, size_t pos) {
         std::string tmp;
         size_t i = pos + 1;
         
@@ -140,12 +165,12 @@ class Json {
             }
         }
 
-        tmp = wstr2str(decodeUnicodeSequence(str2wstr(tmp)));
+        tmp = decodeUnicodeSequence(tmp);
 
-        return { { .type = ANYSTRING, .str = tmp }, i };
+        return { { .type = JSONSTRING, .str = tmp }, i };
     }
 
-    std::pair<AnyType, size_t> parseInt(std::string& str, size_t pos) {
+    std::pair<JsonNode, size_t> parseInt(std::string& str, size_t pos) {
         std::string tmp;
         size_t i = pos;
         size_t endpos = getEndPos(str, pos);
@@ -155,10 +180,10 @@ class Json {
             if (isdigit(j)) tmp += j; 
         }
 
-        return { { .type = ANYINTEGER, .integer = std::stoll(tmp) }, i - 1 };
+        return { { .type = JSONINTEGER, .integer = std::stoll(tmp) }, i - 1 };
     }
 
-    std::pair<AnyType, size_t> parseFloat(std::string& str, size_t pos) {
+    std::pair<JsonNode, size_t> parseFloat(std::string& str, size_t pos) {
         std::string tmp;
         size_t i = pos;
         size_t endpos = getEndPos(str, pos);
@@ -168,90 +193,124 @@ class Json {
             if (isdigit(j) || j == '.') tmp += j; 
         }
 
-        return { { .type = ANYFLOAT, .lfloat = std::stold(tmp) }, i - 1 };
+        return { { .type = JSONFLOAT, .lfloat = std::stold(tmp) }, i - 1 };
     }
 
-    std::pair<AnyType, size_t> parseBool(std::string& str, size_t pos) {
-        if (str.substr(pos, 4) == "true") return { { .type = ANYBOOLEAN, .boolean = true }, pos + 3 };
-        return { { .type = ANYBOOLEAN, .boolean = false }, pos + 4 };
+    std::pair<JsonNode, size_t> parseBool(std::string& str, size_t pos) {
+        if (str.substr(pos, 4) == "true") return { { .type = JSONBOOLEAN, .boolean = true }, pos + 3 };
+        return { { .type = JSONBOOLEAN, .boolean = false }, pos + 4 };
     }
-public:
-    JsonNode parse(std::string str) {
+
+    std::pair<JsonNode, size_t> parseArray(std::string& str, size_t pos) {
         JsonNode node;
-        node.type = JSONOBJECT;
-        bool obj_opened = str[0] == '{';
-        AnyType tmpobj;
+        node.type = JSONARRAY;
+        JsonNode tmpobj;
+        
+        size_t i = (str[pos] != '[') ? pos : pos + 1;
+        size_t endpos = getBrClosePos(str, pos, '[', ']');
 
-        std::string key;
-
-        for (size_t i = 0; i < str.size() && obj_opened; i++) {
+        for (; i <= endpos; i++) {
             char token = str[i];
 
-            if (token == '}') {
-                obj_opened = false;
-                node.addPair(key, tmpobj);
-                key.clear();
-                tmpobj.clear();
-            }
-
-            else if (token == ':') key = tmpobj.str;
-
-            else if (token == ',') {
-                node.addPair(key, tmpobj);
-                key.clear();
-                tmpobj.clear();
-            }
+            if (token == ',' || token == ']') {node.arrayAppend(tmpobj); }
 
             else if (token > 32 && token < 127) {
-                auto tmp = anyParse(str, i);
+                auto tmp = parseAny(str, i);
                 tmpobj = tmp.first;
                 i = tmp.second;
             }
         }
 
-        return node;
+        return { node, i - 1 };
     }
 
-    std::string dump(JsonNode node) {
-        std::string str = "{";
+    std::pair<JsonNode, size_t> parseObject(std::string& str, size_t pos) {
+        JsonNode node;
+        node.type = JSONOBJECT;
+        JsonNode tmpobj;
+        
+        size_t i = (str[pos] != '{') ? pos : pos + 1;
+        size_t endpos = getBrClosePos(str, pos, '{', '}');
+        std::string key;
 
-        for (auto i : node.objects) {
+        for (; i <= endpos; i++) {
+            char token = str[i];
 
-            switch (i.second->type) {
-            case JSONNULL: {
-                str += '"' + i.first + "\": " + "null";
-                break;
-            }
+            if (token == '}') node.addPair(key, tmpobj);
 
-            case JSONSTRING: {
-                
-                str += '"' + i.first + "\": " + '"' + i.second->str + '"';
-                break;
-            }
+            else if (token == ':') key = tmpobj.str;
 
-            case JSONINTEGER: {
-                str += '"' + i.first + "\": " + std::to_string(i.second->integer);
-                break;
-            }
+            else if (token == ',') node.addPair(key, tmpobj);
 
-            case JSONFLOAT: {
-                str += '"' + i.first + "\": " + to_stringWp(i.second->lfloat, 15);
-                break;
+            else if (token > 32 && token < 127) {
+                auto tmp = parseAny(str, i);
+                tmpobj = tmp.first;
+                i = tmp.second;
             }
-
-            case JSONBOOLEAN: {
-                std::stringstream s;
-                s << std::boolalpha << i.second->boolean;
-                str += '"' + i.first + "\": " + s.str();
-                break;
-            }
-            }
-            str += ", ";
         }
 
-        str.erase(str.end() - 2, str.end());
-        str += "}";
+        return { node, i - 1 };
+    }
+public:
+    JsonNode parse(std::string str) { return parseAny(str, 0).first; }
 
+    std::string dump(JsonNode node) {
+        std::string str;
+
+        switch (node.type) {
+        case JSONNULL: {
+            str += "null";
+            break;
+        }
+
+        case JSONSTRING: {
+            
+            str +=  '"' + node.str + '"';
+            break;
+        }
+
+        case JSONINTEGER: {
+            str +=  std::to_string(node.integer);
+            break;
+        }
+
+        case JSONFLOAT: {
+            str += to_stringWp(node.lfloat, 15);
+            break;
+        }
+
+        case JSONBOOLEAN: {
+            std::stringstream s;
+            s << std::boolalpha << node.boolean;
+            str += s.str();
+            break;
+        }
+
+        case JSONARRAY: {
+            str += "[";
+
+            for (int i = 0; i < node.array.size(); i++) {
+                str += dump(node[i]);
+
+                if (i + 1 < node.array.size()) str += ", ";
+            }
+            str += "]";
+            break;
+        }
+
+        case JSONOBJECT: {
+            str += "{";
+
+            for (auto i : node.objects) {
+                str += '"' + i.first + "\": ";
+                str += dump(i.second);
+
+                if (distance(node.objects.begin(), node.objects.find(i.first)) + 1 < node.objects.size()) str += ", ";
+            }
+            str += "}";
+            break;
+        }
+        }
         return str;
     }
 };
