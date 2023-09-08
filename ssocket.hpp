@@ -1,7 +1,10 @@
-﻿#include <iostream>
+#pragma once
+#include <iostream>
 #include <string>
 #include <fstream>
 #include <string.h>
+#include <limits>
+#include "strlib.hpp"
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -131,9 +134,9 @@ public:
 
     void _ssetsockopt(int level, int optname, void* optval, int size) {
 #ifdef _WIN32
-        if (setsockopt(s, level, optname, reinterpret_cast<const char*>(&optval), sizeof(reinterpret_cast<const char*>(&optval))) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (setsockopt(s, level, optname, reinterpret_cast<const char*>(optval), sizeof(reinterpret_cast<const char*>(&optval))) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #elif __linux__
-        if (setsockopt(s, level, optname, &optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (setsockopt(s, level, optname, optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
     }
 
@@ -155,16 +158,9 @@ public:
         if (listen(s, clients) == SOCKET_ERROR) throw GETSOCKETERRNO();
     }
 
-    void ssetrecvtimeout(int s) {
+    void setrecvtimeout(int seconds) {
         struct timeval timeout;
-        timeout.tv_sec = s;
-        timeout.tv_usec = 0;
-        _ssetsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    }
-
-    void setrecvtimeout(int s) {
-        struct timeval timeout;
-        timeout.tv_sec = s;
+        timeout.tv_sec = seconds;
         timeout.tv_usec = 0;
         _ssetsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     }
@@ -209,21 +205,22 @@ public:
     }
 
     size_t ssendall(char* chardata, size_t length) {
-        std::string data(chardata, chardata + length);
         size_t sended = 0;
+        char buff[length];
 
         while (sended < length) {
-            int i = ssend(data.substr(sended, length - sended));
+            substr(sended, length - sended, chardata, buff);
+            int i = ssend(buff, length - sended);
             sended += i;
         }
         return sended;
     }
 
     size_t ssend_file(std::ifstream& file) {
-        char buffer[65536];
+        char buffer[65535];
         size_t size = 0;
         while (file.tellg() != -1) {
-            file.read(buffer, 65536);
+            file.read(buffer, 65535);
 #ifdef _WIN32
             size += send(s, buffer, file.gcount(), 0);
 #elif __linux__
@@ -240,12 +237,13 @@ public:
             std::cout << "Error: srecv max value 32768" << std::endl;
             exit(EXIT_FAILURE);
         }
-        char buffer[32768] = { 0 };
+        char buffer[32768];
 #else
-        char buffer[65536] = { 0 };
+        char buffer[65535];
 #endif
-        recv(s, buffer, length, 0);
-        return std::string(buffer);
+        memset(buffer, 0, length);
+        size_t recvlen = recv(s, buffer, length, 0);
+        return std::string(buffer, buffer + recvlen);
     }
 
     recvdata srecv_char(int length) {
@@ -254,14 +252,16 @@ public:
             std::cout << "Error: srecv_char max value 32768" << std::endl;
             exit(EXIT_FAILURE);
         }
-        char buffer[32768] = { 0 };
+        char buffer[32768];
 #else
-        char buffer[65536] = { 0 };
-#endif
+        char buffer[65535];
+#endif  
+        memset(buffer, 0, length);
         recvdata data;
         data.length = recv(s, buffer, length, 0);
         data.value = buffer;
         // memset(buffer, 0, 32768);
+        if (data.length == std::numeric_limits<size_t>::max()) data.length = 0;
         return data;
 
     }
@@ -271,6 +271,7 @@ public:
         closesocket(s);
         WSACleanup();
 #elif __linux__
+        shutdown(s, SHUT_RDWR);
         close(s);
 #endif
     }
