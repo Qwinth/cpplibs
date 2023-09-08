@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <sys/wait.h>
 #include <sys/prctl.h>
-using namespace std;
 
 class process {
     pid_t mypid;
