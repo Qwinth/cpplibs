@@ -1,14 +1,17 @@
 #pragma once
+#include <iostream>
 #include <string>
 #include <algorithm>
 #include <vector>
 #include <map>
 #include <utility>
 #include <sstream>
+#include <fstream>
 #include "anytype.hpp"
 #include "strlib.hpp"
 
 enum JsonTypes {
+    JSONNONE,
     JSONNULL,
     JSONSTRING,
     JSONINTEGER,
@@ -20,18 +23,26 @@ enum JsonTypes {
 
 class JsonNode {
 public:
-    JsonTypes type = JSONNULL;
+    JsonTypes type = JSONNONE;
     std::string str;
     long long integer = 0;
     long double lfloat = 0;
     bool boolean = false;
     std::vector<JsonNode> array;
+    std::vector<std::string> objectsOrder;
     std::map<std::string, JsonNode> objects;
 
     JsonNode operator[](std::string str) { return objects[str]; }
     JsonNode operator[](size_t num) { return array[num]; }
 
     bool is_null() { return type == JSONNULL; }
+
+    size_t size() {
+        if (type == JSONOBJECT) return objects.size();
+        else if (type == JSONARRAY) return array.size();
+
+        return 0;
+    }
 
 private:
     JsonNode AnyType_to_JsonNode(AnyType value) {
@@ -69,21 +80,21 @@ private:
     }
 
 public:
-    void addPair(std::string key, std::string value) { objects[key] = {.type = JSONSTRING, .str = value}; }
-    void addPair(std::string key, const char* value) { objects[key] = {.type = JSONSTRING, .str = value}; }
-    void addPair(std::string key, short value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
-    void addPair(std::string key, int value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
-    void addPair(std::string key, long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
-    void addPair(std::string key, long long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; }
-    void addPair(std::string key, float value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; }
-    void addPair(std::string key, double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; }
-    void addPair(std::string key, long double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; }
-    void addPair(std::string key, bool value) { objects[key] = {.type = JSONBOOLEAN, .boolean = value}; }
-    void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = {.type = JSONARRAY, .array = value}; }
-    void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = {.type = JSONOBJECT, .objects = value}; }
-    void addPair(std::string key, JsonNode value) { objects[key] = value; }
-    void addPair(std::string key, AnyType value) { objects[key] = (AnyType_to_JsonNode(value)); }
-    void arrayAppend(JsonNode value) { array.push_back(value); }
+    void addPair(std::string key, std::string value) { objects[key] = {.type = JSONSTRING, .str = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, const char* value) { objects[key] = {.type = JSONSTRING, .str = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, short value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, int value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, long long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, float value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, long double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, bool value) { objects[key] = {.type = JSONBOOLEAN, .boolean = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = {.type = JSONARRAY, .array = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = {.type = JSONOBJECT, .objects = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, JsonNode value) { objects[key] = value; objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, AnyType value) { objects[key] = (AnyType_to_JsonNode(value)); objectsOrder.push_back(key); type = JSONOBJECT; }
+    void arrayAppend(JsonNode value) { array.push_back(value); type = JSONARRAY; }
 };
 
 class Json {
@@ -102,28 +113,33 @@ class Json {
     }
 
     size_t getEndPos(std::string& str, size_t pos) {
-        size_t tmppos = std::string::npos;
-        if ((tmppos = str.find(',', pos)) != std::string::npos) return tmppos;
-        else if ((tmppos = str.find('}', pos)) != std::string::npos) return tmppos;
-        else if ((tmppos = str.find(']', pos)) != std::string::npos) return tmppos;
+        std::vector<size_t> poss;
+        poss.push_back(str.size());
+        poss.push_back(str.find(',', pos));
+        poss.push_back(str.find('}', pos));
+        poss.push_back(str.find(']', pos));        
 
-        return tmppos;
+        return *std::min_element(poss.begin(), poss.end());
     }
 
     size_t getBrClosePos(std::string& str, size_t pos, char brOpen, char brClose) {
-        size_t i = pos;
+        size_t ret = std::string::npos;
+        size_t i;
+        bool quotes = false;
         int br = 0;
 
-        for (; i < str.size(); i++) {
+        for (i = pos; i < str.size(); i++) {
             char j = str[i];
 
-            if (j == brOpen) br++;
-            else if (j == brClose) br--;
+            if (j == '"' && (i - 1 < 0 || str[i - 1] != '\\')) quotes = !quotes;
 
-            if (br == 0) break;
+            if (j == brOpen && !quotes) br++;
+            else if (j == brClose && !quotes) br--;
+
+            if (br == 0) { ret = i; break; }
         }
 
-        return i;
+        return ret;
     }
 
     bool is_float(std::string& str, size_t pos) {
@@ -132,40 +148,55 @@ class Json {
         for (size_t i = pos; i < endpos; i++) {
             char j = str[i];
 
+            if (j == '-') continue;
             if (isdigit(str[i - 1]) && j == '.' && isdigit(str[i + 1])) return true;
+            else if (toupper(j) == 'E' && str[i + 1] == '-') return true;
         }
 
         return false;
     }
 
+    size_t findStart(std::string& str, size_t pos) {
+        size_t startpos = pos;
+
+        for (; startpos < str.size(); startpos++) if (str[startpos] > 32) break;
+
+        return startpos;
+    } 
+
     std::pair<JsonNode, size_t> parseAny(std::string& str, size_t pos) {
         if (str[pos] == '"') return parseString(str, pos);
-        else if (isdigit(str[pos]) && !is_float(str, pos)) return parseInt(str, pos);
-        else if (isdigit(str[pos]) && is_float(str, pos)) return parseFloat(str, pos);
+        else if ((isdigit(str[pos]) || (str[pos] == '-' && isdigit(str[pos + 1]))) && !is_float(str, pos)) return parseInt(str, pos);
+        else if ((isdigit(str[pos]) || (str[pos] == '-' && isdigit(str[pos + 1]))) && is_float(str, pos)) return parseFloat(str, pos);
         else if (str[pos] == 't' || str[pos] == 'f') return parseBool(str, pos);
         else if (str[pos] == '[') return parseArray(str, pos);
         else if (str[pos] == '{') return parseObject(str, pos);
-        return { {}, pos };
+        else if (!str.size()) return { {}, pos };
+
+        return { {.type = JSONNULL}, pos };
     }
 
     std::pair<JsonNode, size_t> parseString(std::string& str, size_t pos) {
         std::string tmp;
         size_t i = pos + 1;
-        
+
         for (; i < str.size(); i++) {
             char j = str[i];
 
             if (j == '"') break;
+            else if (j == '\\' && str[i + 1] == 'u') {
+                tmp += decodeUnicodeSequence(str.substr(i, 6));
+                i += 5;
+                continue;
+            }
             else if (j == '\\') {
-                tmp += str[i + 1];
+                tmp += escape_sequences_reverse[std::string(1, j) + str[i + 1]];
                 i++;
                 continue;
             } else {
                 tmp += j;
             }
         }
-
-        tmp = decodeUnicodeSequence(tmp);
 
         return { { .type = JSONSTRING, .str = tmp }, i };
     }
@@ -177,10 +208,10 @@ class Json {
 
         for (; i < endpos; i++) {
             char j = str[i];
-            if (isdigit(j)) tmp += j; 
+            if (isdigit(j) || j == '-' || j == '+' || toupper(j) == 'E') tmp += j; 
         }
 
-        return { { .type = JSONINTEGER, .integer = std::stoll(tmp) }, i - 1 };
+        return { { .type = JSONINTEGER, .integer = std::stoll(unpackNumber(tmp)) }, i - 1 };
     }
 
     std::pair<JsonNode, size_t> parseFloat(std::string& str, size_t pos) {
@@ -190,10 +221,10 @@ class Json {
 
         for (; i < endpos; i++) {
             char j = str[i];
-            if (isdigit(j) || j == '.') tmp += j; 
+            if (isdigit(j) || j == '.' || j == '-' || j == '+' || toupper(j) == 'E') tmp += j; 
         }
 
-        return { { .type = JSONFLOAT, .lfloat = std::stold(tmp) }, i - 1 };
+        return { { .type = JSONFLOAT, .lfloat = std::stold(unpackNumber(tmp)) }, i - 1 };
     }
 
     std::pair<JsonNode, size_t> parseBool(std::string& str, size_t pos) {
@@ -209,10 +240,12 @@ class Json {
         size_t i = (str[pos] != '[') ? pos : pos + 1;
         size_t endpos = getBrClosePos(str, pos, '[', ']');
 
+        if (endpos == std::string::npos) { std::cout << "Syntax error: array is not closed" << std::endl; exit(1); }
+
         for (; i <= endpos; i++) {
             char token = str[i];
 
-            if (token == ',' || token == ']') {node.arrayAppend(tmpobj); }
+            if (token == ',' || token == ']') { node.arrayAppend(tmpobj); }
 
             else if (token > 32 && token < 127) {
                 auto tmp = parseAny(str, i);
@@ -228,31 +261,53 @@ class Json {
         JsonNode node;
         node.type = JSONOBJECT;
         JsonNode tmpobj;
-        
+
         size_t i = (str[pos] != '{') ? pos : pos + 1;
         size_t endpos = getBrClosePos(str, pos, '{', '}');
+
+        if (endpos == std::string::npos) { std::cout << "Syntax error: object is not closed" << std::endl; exit(1); }
+        
         std::string key;
+        bool iskey = false;
+        bool isvalue = false;
+
+        if (str[i] == '}' && str[i - 1] == '{') return { node, i };
 
         for (; i <= endpos; i++) {
             char token = str[i];
 
-            if (token == '}') node.addPair(key, tmpobj);
+            if (token == '}') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { std::cout << "Syntax error: object missing value" << std::endl; exit(1); }
 
-            else if (token == ':') key = tmpobj.str;
+            else if (token == ':') if (iskey) key = tmpobj.str; else { std::cout << "Syntax error: object missing key" << std::endl; exit(1); }
 
-            else if (token == ',') node.addPair(key, tmpobj);
+            else if (token == ',') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { std::cout << "Syntax error: object missing value" << std::endl; exit(1); }
 
             else if (token > 32 && token < 127) {
+                if (iskey == false && token != '"') { std::cout << "Syntax error: value must be a string" << std::endl; exit(1); }
+
                 auto tmp = parseAny(str, i);
                 tmpobj = tmp.first;
                 i = tmp.second;
+
+                if (iskey && isvalue) { std::cout << "Syntax error: expected comma" << std::endl; exit(1); }
+                if (iskey) isvalue = true;
+                iskey = true;
+                // std::cout << "char: " << token << " pos: " << i << std::endl;
             }
         }
+        
 
         return { node, i - 1 };
     }
 public:
-    JsonNode parse(std::string str) { return parseAny(str, 0).first; }
+    JsonNode parse(std::string str) { return parseAny(str, findStart(str, 0)).first; }
+    JsonNode parse(std::ifstream& file) {
+        std::stringstream tmp;
+        tmp << file.rdbuf();
+        std::string str = tmp.str();
+
+        return parseAny(str, findStart(str, 0)).first;
+    }
 
     std::string dump(JsonNode node) {
         std::string str;
@@ -264,8 +319,13 @@ public:
         }
 
         case JSONSTRING: {
-            
-            str +=  '"' + node.str + '"';
+            replaceAll(node.str, "\\", "\\\\");
+            for (auto i : escape_sequences) {
+                if (i.second == "\\\\" || i.second == "\\'") continue;
+                replaceAll(node.str, i.first, i.second);
+            }
+
+            str +=  '"' + encodeUnicodeSequence(node.str) + '"';
             break;
         }
 
@@ -299,13 +359,22 @@ public:
         }
 
         case JSONOBJECT: {
+            std::vector<std::string> usedKeys;
             str += "{";
 
-            for (auto i : node.objects) {
-                str += '"' + i.first + "\": ";
-                str += dump(i.second);
+            for (auto i : node.objectsOrder) {
+                auto j = node.objects[i];
 
-                if (distance(node.objects.begin(), node.objects.find(i.first)) + 1 < node.objects.size()) str += ", ";
+                if (find(usedKeys.begin(), usedKeys.end(), i) == usedKeys.end()) {
+                    usedKeys.push_back(i);
+
+                    str += '"' + encodeUnicodeSequence(i) + "\": ";
+                    str += dump(j);
+
+                    if (distance(node.objectsOrder.begin(), find(node.objectsOrder.begin(), node.objectsOrder.end(), i)) + 1 < node.objects.size()) str += ", ";
+                }
+
+                else std::cout << "Warning: object dublicated key" << std::endl;
             }
             str += "}";
             break;
