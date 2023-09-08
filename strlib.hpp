@@ -12,6 +12,15 @@
 #include <regex>
 #include <codecvt>
 
+std::string operator*(std::string str, size_t num) {
+    std::string newstr;
+    for (size_t i = 0; i < num; i++) newstr += str;
+    return newstr;
+}
+
+std::map<std::string, std::string> escape_sequences = { {"\\", "\\\\"}, {"\'", "\\'"}, {"\"", "\\\""}, {"\a", "\\a"}, {"\b", "\\b"}, {"\f", "\\f"}, {"\n", "\\n"}, {"\r", "\\r"}, {"\t", "\\t"}, {"\v", "\\v"} };
+std::map<std::string, std::string> escape_sequences_reverse = { {"\\'", "\'"}, {"\\\"", "\""}, {"\\\\", "\\"}, {"\\a", "\a"}, {"\\b", "\b"}, {"\\f", "\f"}, {"\\n", "\n"}, {"\\r", "\r"}, {"\\t", "\t"}, {"\\v", "\v"} };
+
 struct Bytes {
     size_t length = 0;
     char* data;
@@ -271,9 +280,10 @@ void replaceAll(std::string& source, const std::string& from, const std::string&
     source.swap(newString);
 }
 
-std::string to_stringWp(long double arg, int precision) {
+std::string to_stringWp(long double arg, int precision = 0) {
     std::stringstream s;
-    s << std::setprecision(precision) << arg;
+    if (precision) s << std::setprecision(precision) << arg;
+    else s << std::setprecision(100) << arg;
     return s.str();
 }
 
@@ -297,4 +307,68 @@ std::string decodeUnicodeSequence(const std::string& str) {
     decodedString.append(input, lastPos, input.size() - lastPos);
     
     return wstr2str(decodedString);
+}
+
+bool isNonASCII(wchar_t ch) {
+    return static_cast<unsigned int>(ch) > 127 || static_cast<unsigned int>(ch) < 32;
+}
+
+std::string encodeUnicodeSequence(const std::string& str) {
+    std::wstring input = str2wstr(str);
+    std::wstringstream result;
+    for (wchar_t c : input) if (isNonASCII(c)) result << L"\\u" << std::hex << std::setw(4) << std::setfill(L'0') << static_cast<int>(c); else result << c;
+    return wstr2str(result.str());
+}
+
+std::string unpackNumber(std::string& str) {
+    std::string ret;
+    std::string delim = "E";
+    if (str.find('e') != std::string::npos) delim = 'e';
+
+    std::vector<std::string> tmp = split(str, delim);
+    if (tmp.size() > 1) {
+        if (tmp[1].find('-') != std::string::npos) {
+            long double mynum = std::stold(tmp[0]);
+            int num = std::stoi(tmp[1].substr(1));
+
+            for (int i = 0; i < num; i++) mynum /= 10;
+            ret = to_stringWp(mynum);
+        }
+
+        else {
+            long double mynum = std::stold(tmp[0]);
+            int num = std::stoi((tmp[1].find('+') != std::string::npos) ? tmp[1].substr(1) : tmp[1]);
+
+            for (int i = 0; i < num; i++) mynum *= 10;
+            ret = to_stringWp(mynum);
+        }
+    }
+
+    else ret = tmp[0];
+
+    return ret;
+}
+
+void substr(int pos, int len, const char* src, char* dest) {
+    memcpy(dest, &src[pos], len);
+}
+
+std::string tolowerString(std::string& str) {
+    std::string ret;
+
+    for (char i : str) {
+        ret += tolower(i);
+    }
+
+    return ret;
+}
+
+std::string toupperString(std::string& str) {
+    std::string ret;
+
+    for (char i : str) {
+        ret += toupper(i);
+    }
+
+    return ret;
 }
