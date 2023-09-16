@@ -25,7 +25,7 @@
 #endif
 
 struct recvdata {
-    char* value;
+    void* value;
     size_t length;
 };
 
@@ -185,7 +185,7 @@ public:
 #endif
     }
 
-    size_t ssend(char* data, size_t length) {
+     size_t ssend(const void* data, size_t length) {
 #ifdef _WIN32
         return send(s, data, length, 0);
 #elif __linux__
@@ -204,12 +204,12 @@ public:
         return sended;
     }
 
-    size_t ssendall(char* chardata, size_t length) {
+    size_t ssendall(const void* chardata, size_t length) {
         size_t sended = 0;
         char buff[length];
 
         while (sended < length) {
-            substr(sended, length - sended, chardata, buff);
+            substr(sended, length - sended, (const char*)chardata, buff);
             int i = ssend(buff, length - sended);
             sended += i;
         }
@@ -242,7 +242,12 @@ public:
         char buffer[65535];
 #endif
         memset(buffer, 0, length);
+
+        int preverrno = errno;
+
         size_t recvlen = recv(s, buffer, length, 0);
+        
+        if (recvlen == std::string::npos && errno == 104) { errno = preverrno; return ""; }
         return std::string(buffer, buffer + recvlen);
     }
 
@@ -257,11 +262,14 @@ public:
         char buffer[65535];
 #endif  
         memset(buffer, 0, length);
+
+        int preverrno = errno;
+
         recvdata data;
         data.length = recv(s, buffer, length, 0);
         data.value = buffer;
-        // memset(buffer, 0, 32768);
-        if (data.length == std::numeric_limits<size_t>::max()) data.length = 0;
+
+        if (data.length == std::string::npos && errno == 104) { errno = preverrno; data.length = 0; }
         return data;
 
     }
