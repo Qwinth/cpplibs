@@ -6,11 +6,13 @@
 #include <limits>
 #include "strlib.hpp"
 
+
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <Windows.h>
 #pragma comment(lib, "ws2_32.lib")
-#include <WinSock2.h>
-#include <ws2tcpip.h>
+//#include <WinSock2.h>
+//#include <ws2tcpip.h>
 #define GETSOCKETERRNO() (WSAGetLastError())
 
 #elif __linux__
@@ -187,7 +189,7 @@ public:
 
      size_t ssend(const void* data, size_t length) {
 #ifdef _WIN32
-        return send(s, data, length, 0);
+        return send(s, (const char*)data, length, 0);
 #elif __linux__
         return send(s, data, length, MSG_NOSIGNAL);
 #endif
@@ -206,13 +208,15 @@ public:
 
     size_t ssendall(const void* chardata, size_t length) {
         size_t sended = 0;
-        char buff[length];
+        char *buff = new char[length];
 
         while (sended < length) {
             substr(sended, length - sended, (const char*)chardata, buff);
             int i = ssend(buff, length - sended);
             sended += i;
         }
+
+        delete buff;
         return sended;
     }
 
@@ -247,7 +251,7 @@ public:
 
         size_t recvlen = recv(s, buffer, length, 0);
         
-        if (recvlen == std::string::npos && errno == 104) { errno = preverrno; return ""; }
+        if (recvlen == std::string::npos || errno == 104) { errno = preverrno; return ""; }
         return std::string(buffer, buffer + recvlen);
     }
 
@@ -269,7 +273,7 @@ public:
         data.length = recv(s, buffer, length, 0);
         data.value = buffer;
 
-        if (data.length == std::string::npos && errno == 104) { errno = preverrno; data.length = 0; }
+        if (data.length == std::string::npos || errno == 104) { errno = preverrno; data.length = 0; }
         return data;
 
     }
