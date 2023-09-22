@@ -11,8 +11,6 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <Windows.h>
 #pragma comment(lib, "ws2_32.lib")
-//#include <WinSock2.h>
-//#include <ws2tcpip.h>
 #define GETSOCKETERRNO() (WSAGetLastError())
 
 #elif __linux__
