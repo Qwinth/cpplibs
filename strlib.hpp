@@ -10,7 +10,12 @@
 #include <algorithm>
 #include <iterator>
 #include <regex>
+#ifdef _WIN32
+#include <Windows.h>
+#else
 #include <codecvt>
+#endif
+
 
 std::string operator*(std::string str, size_t num) {
     std::string newstr;
@@ -165,6 +170,7 @@ std::string uuid4() {
     return ss.str();
 }
 
+#ifndef _WIN32
 std::wstring str2wstr(const std::string& utf8Str) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
     return conv.from_bytes(utf8Str);
@@ -174,6 +180,43 @@ std::string wstr2str(const std::wstring& utf16Str) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
     return conv.to_bytes(utf16Str);
 }
+#else
+std::wstring str2wstr(const std::string& string)
+{
+    if (string.empty())
+    {
+        return L"";
+    }
+
+    const auto size_needed = MultiByteToWideChar(CP_UTF8, 0, &string.at(0), (int)string.size(), nullptr, 0);
+    if (size_needed <= 0)
+    {
+        throw std::runtime_error("MultiByteToWideChar() failed: " + std::to_string(size_needed));
+    }
+
+    std::wstring result(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &string.at(0), (int)string.size(), &result.at(0), size_needed);
+    return result;
+}
+
+std::string wstr2str(const std::wstring& wide_string)
+{
+    if (wide_string.empty())
+    {
+        return "";
+    }
+
+    const auto size_needed = WideCharToMultiByte(CP_UTF8, 0, &wide_string.at(0), (int)wide_string.size(), nullptr, 0, nullptr, nullptr);
+    if (size_needed <= 0)
+    {
+        throw std::runtime_error("WideCharToMultiByte() failed: " + std::to_string(size_needed));
+    }
+
+    std::string result(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wide_string.at(0), (int)wide_string.size(), &result.at(0), size_needed, nullptr, nullptr);
+    return result;
+}
+#endif
 
 #if __cplusplus >= 202002L || (_WIN32 && __cplusplus >= 199711L)
 std::string u8tostr(std::u8string str) {
@@ -221,7 +264,7 @@ static void cp2utf1(char* out, const char* in) {
 }
 std::string cp1251toutf8(std::string s) {
     int c, i;
-    int len = s.size();
+    size_t len = s.size();
     std::string ns;
     for (i = 0; i < len; i++) {
         c = s[i];
@@ -371,4 +414,15 @@ std::string toupperString(std::string& str) {
     }
 
     return ret;
+}
+
+
+std::string sstrerror(int e) {
+#ifdef _WIN32
+    char buff[100];
+    strerror_s(buff, 100, e);
+    return std::string(buff, 100);
+#else
+    return strerror(e);
+#endif
 }
