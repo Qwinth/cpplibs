@@ -325,7 +325,7 @@ void replaceAll(std::string& source, const std::string& from, const std::string&
 
 std::string to_stringWp(long double arg, int precision = 0) {
     std::stringstream s;
-    if (precision) s << std::setprecision(precision) << arg;
+    if (precision) s << std::setprecision(precision) << std::fixed << arg;
     else s << std::setprecision(15) << std::fixed << arg;
     return s.str();
 }
