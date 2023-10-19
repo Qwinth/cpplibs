@@ -392,8 +392,8 @@ std::string unpackNumber(std::string& str) {
     return ret;
 }
 
-void substr(int pos, int len, const char* src, char* dest) {
-    memcpy(dest, &src[pos], len);
+void substr(size_t pos, size_t len, const char* src, char* dest, size_t destpos = 0) {
+    memcpy(&dest[destpos], &src[pos], len);
 }
 
 std::string tolowerString(std::string& str) {
