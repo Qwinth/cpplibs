@@ -1,6 +1,8 @@
+// version 1.8
 #pragma once
 #include <string>
 #include <vector>
+#include <map>
 #include <stdarg.h>
 #include <random>
 #include <sstream>
@@ -324,8 +326,8 @@ void replaceAll(std::string& source, const std::string& from, const std::string&
 
 std::string to_stringWp(long double arg, int precision = 0) {
     std::stringstream s;
-    if (precision) s << std::setprecision(precision) << std::fixed << arg;
-    else s << std::setprecision(15) << std::fixed << arg;
+    if (precision) s << std::setprecision(precision) << arg;
+    else s << std::setprecision(100) << arg;
     return s.str();
 }
 
@@ -391,8 +393,8 @@ std::string unpackNumber(std::string& str) {
     return ret;
 }
 
-void substr(size_t pos, size_t len, const char* src, char* dest, size_t destpos = 0) {
-    memcpy(&dest[destpos], &src[pos], len);
+void substr(int pos, int len, const char* src, char* dest) {
+    memcpy(dest, &src[pos], len);
 }
 
 std::string tolowerString(std::string& str) {
