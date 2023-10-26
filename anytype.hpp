@@ -97,7 +97,7 @@ struct AnyType {
 };
 
 void anyPrint(AnyType obj, bool endline = true) {
-    if (obj.type == ANYSTRING) std::cout << '"' << obj.str << '"';
+    if (obj.type == ANYSTRING) std::cout << std::quoted(obj.str);
     else if (obj.type == ANYINTEGER) std::cout << obj.integer;
     else if (obj.type == ANYFLOAT) std::cout << std::setprecision(15) << obj.lfloat;
     else if (obj.type == ANYBOOLEAN) std::cout << std::boolalpha << obj.boolean;
@@ -131,7 +131,7 @@ AnyType str2any(std::string string, Types type) {
     else if (type == ANYINTEGER) return { .type = ANYINTEGER, .integer = stoll(string) };
     else if (type == ANYFLOAT) return { .type = ANYFLOAT, .lfloat = stold(string) };
     else if (type == ANYBOOLEAN) {
-        bool b;
+        bool b = false;
         std::istringstream(string) >> std::boolalpha >> b;
         return { .type = ANYBOOLEAN, .boolean = b };
     } else return { ANYNONE };
