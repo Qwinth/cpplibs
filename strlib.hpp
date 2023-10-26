@@ -10,9 +10,8 @@
 #include <algorithm>
 #include <iterator>
 #include <regex>
-#ifdef _WIN32
-#include <Windows.h>
-#else
+#include "windowsHeader.hpp"
+#ifndef _WIN32
 #include <codecvt>
 #endif
 
