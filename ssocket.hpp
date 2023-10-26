@@ -3,13 +3,13 @@
 #include <string>
 #include <fstream>
 #include <string.h>
-#include <limits>
 #include "strlib.hpp"
 
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <Windows.h>
+#include "windowsHeader.hpp"
+#include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #define GETSOCKETERRNO() (WSAGetLastError())
 
@@ -278,6 +278,7 @@ public:
 
     void sclose() {
 #ifdef _WIN32
+        shutdown(s, SD_BOTH);
         closesocket(s);
         WSACleanup();
 #elif __linux__
