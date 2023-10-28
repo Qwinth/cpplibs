@@ -5,6 +5,7 @@
 #include <fstream>
 #include <algorithm>
 #include <vector>
+#include <utility>
 #include <string.h>
 #include "strlib.hpp"
 
@@ -71,7 +72,6 @@ class SSocket {
 
     sockaddress_t sockaddr_in_to_address(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
 public:
-    sockaddr_in client, my_addr;
 #ifdef _WIN32
     WSADATA wsa;
     SOCKET s;
@@ -103,18 +103,18 @@ public:
     void sconnect(std::string ipaddr, int port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (connect(s, (struct sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
     }
 
     void sbind(std::string ipaddr, int port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (bind(s, (struct sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
     }
 
     std::string sgethostbyname(std::string name) {
-        struct hostent* remoteHost;
-        struct in_addr addr;
+        hostent* remoteHost;
+        in_addr addr;
 
         remoteHost = gethostbyname(name.c_str());
 
@@ -124,13 +124,14 @@ public:
 
 
     sockaddress_t sgetsockname() {
-        memset(&my_addr, 0, sizeof(my_addr));
-        int addrlen = sizeof(my_addr);
+        sockaddr_in my_addr;
+        int addrlen = sizeof(sockaddr_in);
+
 #ifdef _WIN32
-        if (getsockname(s, (struct sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (getsockname(s, (sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #elif __linux__
         socklen_t len = sizeof(my_addr);
-        if (getsockname(s, (struct sockaddr*)&my_addr, &len) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (getsockname(s, (sockaddr*)&my_addr, &len) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
         return sockaddr_in_to_address(my_addr);
     }
@@ -162,22 +163,24 @@ public:
     }
 
     void setrecvtimeout(int seconds) {
-        struct timeval timeout;
+        timeval timeout;
         timeout.tv_sec = seconds;
         timeout.tv_usec = 0;
         _ssetsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     }
 
-    SSocket saccept() {
-        int c = sizeof(struct sockaddr_in);
+    std::pair<SSocket, sockaddress_t> saccept() {
+        sockaddr_in client;
+        int c = sizeof(sockaddr_in);
+
 #ifdef _WIN32
-        auto new_socket = accept(s, (struct sockaddr*)&client, &c);
+        auto new_socket = accept(s, (sockaddr*)&client, &c);
 #elif __linux__
-        auto new_socket = accept(s, (struct sockaddr*)&client, (socklen_t*)&c);
+        auto new_socket = accept(s, (sockaddr*)&client, (socklen_t*)&c);
 #endif
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return SSocket(new_socket);
+        return { new_socket, sockaddr_in_to_address(client) };
     }
 
     size_t ssend(std::string data) {
