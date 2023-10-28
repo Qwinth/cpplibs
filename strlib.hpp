@@ -40,6 +40,14 @@ std::string toUpper(std::string str) {
     return ret;
 }
 
+std::string toLower(std::string str) {
+    std::string ret;
+    for (char i : str) {
+        ret += std::tolower(i);
+    }
+    return ret;
+}
+
 std::string strformat(const char* fmt, ...){
     int size = 512;
     char* buffer = 0;
@@ -396,27 +404,6 @@ std::string unpackNumber(std::string& str) {
 void substr(int pos, int len, const char* src, char* dest) {
     memcpy(dest, &src[pos], len);
 }
-
-std::string tolowerString(std::string& str) {
-    std::string ret;
-
-    for (char i : str) {
-        ret += tolower(i);
-    }
-
-    return ret;
-}
-
-std::string toupperString(std::string& str) {
-    std::string ret;
-
-    for (char i : str) {
-        ret += toupper(i);
-    }
-
-    return ret;
-}
-
 
 std::string sstrerror(int e) {
 #ifdef _WIN32

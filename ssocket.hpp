@@ -217,7 +217,7 @@ public:
             sended += i;
         }
 
-        delete buff;
+        delete[] buff;
         return sended;
     }
 
@@ -247,6 +247,8 @@ public:
     size_t ssendto(std::string buf, std::string ipaddr, int port) { return ssendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
 
     size_t ssendto(std::string buf, address addr) { return ssendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
+    
+    size_t ssendto(recvdata data) { return ssendto((char*)data.value, data.length, data.addr.ip, data.addr.port); }
 
     recvdata srecv(int size) {
 #ifndef _DISABLE_RECV_LIMIT
@@ -274,7 +276,7 @@ public:
 
     recvdata srecvfrom(size_t size) {
         sockaddr_in sock;
-        socklen_t len;
+        socklen_t len = sizeof(sockaddr_in);
 
         #ifndef _DISABLE_RECV_LIMIT
         if (size > 32768) {
@@ -286,7 +288,7 @@ public:
         char buffer[65535];
 #endif  
         int preverrno = errno;
-
+        
         recvdata data;
         data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len);
         data.value = buffer;
