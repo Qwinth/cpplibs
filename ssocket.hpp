@@ -70,7 +70,7 @@ class SSocket {
         return tmpaddr;
     }
 
-    sockaddress_t sockaddr_in_to_address(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
+    sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
 public:
 #ifdef _WIN32
     WSADATA wsa;
@@ -132,7 +132,7 @@ public:
 #elif __linux__
         if (getsockname(s, (sockaddr*)&my_addr, (socklen_t*)&addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
-        return sockaddr_in_to_address(my_addr);
+        return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
     void _ssetsockopt(int level, int optname, void* optval, int size) {
@@ -179,7 +179,7 @@ public:
 #endif
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { new_socket, sockaddr_in_to_address(client) };
+        return { new_socket, sockaddr_in_to_sockaddress_t(client) };
     }
 
     size_t ssend(std::string data) {
@@ -295,7 +295,7 @@ public:
         data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len);
         data.buffer = buffer;
         data.string.assign(buffer, data.length);
-        data.addr = sockaddr_in_to_address(sock);
+        data.addr = sockaddr_in_to_sockaddress_t(sock);
 
         if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
 
