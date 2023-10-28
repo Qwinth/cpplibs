@@ -118,7 +118,7 @@ public:
 
         remoteHost = gethostbyname(name.c_str());
 
-        addr.s_addr = *(u_long*)remoteHost->h_addr_list[0];
+        addr.s_addr = *(uint64_t*)remoteHost->h_addr_list[0];
         return std::string(inet_ntoa(addr));
     }
 
@@ -130,8 +130,7 @@ public:
 #ifdef _WIN32
         if (getsockname(s, (sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #elif __linux__
-        socklen_t len = sizeof(my_addr);
-        if (getsockname(s, (sockaddr*)&my_addr, &len) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (getsockname(s, (sockaddr*)&my_addr, (socklen_t*)&addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
         return sockaddr_in_to_address(my_addr);
     }
@@ -166,7 +165,7 @@ public:
         timeval timeout;
         timeout.tv_sec = seconds;
         timeout.tv_usec = 0;
-        _ssetsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        _ssetsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeval));
     }
 
     std::pair<SSocket, sockaddress_t> saccept() {
