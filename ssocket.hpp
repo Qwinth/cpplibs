@@ -1,8 +1,10 @@
-// version 1.5
+// version 1.7
 #pragma once
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <algorithm>
+#include <vector>
 #include <string.h>
 #include "strlib.hpp"
 
@@ -25,14 +27,16 @@
 #define GETSOCKETERRNO() (errno)
 #endif
 
-struct recvdata {
-    void* value;
-    size_t length;
-};
-
 struct address {
     std::string ip;
     int port;
+};
+
+struct recvdata {
+    std::string strvalue;
+    void* value;
+    ssize_t length;
+    address addr;
 };
 
 struct ret {
@@ -42,8 +46,32 @@ struct ret {
 
 class SSocket {
     int af;
+
+    bool checkIp(std::string ipaddr) {
+        for (auto &i : split(ipaddr, '.')) if (!std::all_of(i.begin(), i.end(), ::isdigit)) return false;
+        return true;
+    }
+
+    sockaddr_in make_sockaddr_in(std::string ipaddr, int port) {
+        sockaddr_in tmpaddr;
+
+        if (ipaddr != "") {
+            if (!checkIp(ipaddr)) ipaddr = sgethostbyname(ipaddr);
+
+            tmpaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
+        }
+        else {
+            tmpaddr.sin_addr.s_addr = INADDR_ANY;
+        }
+        tmpaddr.sin_family = af;
+        tmpaddr.sin_port = htons(port);
+
+        return tmpaddr;
+    }
+
+    address sockaddr_in_to_address(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
 public:
-    struct sockaddr_in sock, client, my_addr;
+    sockaddr_in client, my_addr;
 #ifdef _WIN32
     WSADATA wsa;
     SOCKET s;
@@ -64,9 +92,7 @@ public:
         WSAStartup(MAKEWORD(2, 2), &wsa);
     }
 #elif __linux__
-    SSocket(int ss) {
-        s = ss;
-    }
+    SSocket(int ss) { s = ss; }
 #endif
     /*~SSocket() {
         this->sclose();
@@ -74,45 +100,24 @@ public:
     }*/
 
 
-    void sconnect(std::string ip, int port) {
-        if (ip != "") {
-            if (ip.length() > 3) {
-                if (!isdigit(ip[0]) && !isdigit(ip[1]) && !isdigit(ip[2])) {
-                    ip = sgethostbyname(ip);
-                }
-                sock.sin_addr.s_addr = inet_addr(ip.c_str());
-            }
-        }
-        else {
-            sock.sin_addr.s_addr = INADDR_ANY;
-        }
-        sock.sin_family = af;
-        sock.sin_port = htons(port);
-        if (connect(s, (struct sockaddr*)&sock, sizeof(sock)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+    void sconnect(std::string ipaddr, int port) {
+        sockaddr_in sock = make_sockaddr_in(ipaddr, port);
+
+        if (connect(s, (struct sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
     }
 
-    void sbind(std::string ip, int port) {
-        if (ip != "") {
-            if (!isdigit(ip[0]) && !isdigit(ip[1]) && !isdigit(ip[2])) {
+    void sbind(std::string ipaddr, int port) {
+        sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-                ip = sgethostbyname(ip);
-            }
-            sock.sin_addr.s_addr = inet_addr(ip.c_str());
-        }
-        else {
-            sock.sin_addr.s_addr = INADDR_ANY;
-        }
-        sock.sin_family = af;
-        sock.sin_port = htons(port);
-
-        if (bind(s, (struct sockaddr*)&sock, sizeof(sock)) == SOCKET_ERROR) throw GETSOCKETERRNO();
-
+        if (bind(s, (struct sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
     }
 
     std::string sgethostbyname(std::string name) {
         struct hostent* remoteHost;
         struct in_addr addr;
+
         remoteHost = gethostbyname(name.c_str());
+
         addr.s_addr = *(u_long*)remoteHost->h_addr_list[0];
         return std::string(inet_ntoa(addr));
     }
@@ -127,10 +132,7 @@ public:
         socklen_t len = sizeof(my_addr);
         if (getsockname(s, (struct sockaddr*)&my_addr, &len) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
-        address addr;
-        addr.ip = inet_ntoa(my_addr.sin_addr);
-        addr.port = my_addr.sin_port;
-        return addr;
+        return sockaddr_in_to_address(my_addr);
     }
 
     void _ssetsockopt(int level, int optname, void* optval, int size) {
@@ -234,9 +236,21 @@ public:
         return size;
     }
 
-    std::string srecv(int length) {
+    size_t ssendto(char* buf, size_t size, std::string ipaddr, int port) {
+        sockaddr_in sock = make_sockaddr_in(ipaddr, port);
+
+        return sendto(s, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
+    }
+
+    size_t ssendto(char* buf, size_t size, address addr) { return ssendto(buf, size, addr.ip, addr.port); }
+
+    size_t ssendto(std::string buf, std::string ipaddr, int port) { return ssendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
+
+    size_t ssendto(std::string buf, address addr) { return ssendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
+
+    recvdata srecv(int size) {
 #ifndef _DISABLE_RECV_LIMIT
-        if (length > 32768) {
+        if (size > 32768) {
             std::cout << "Error: srecv max value 32768" << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -244,19 +258,26 @@ public:
 #else
         char buffer[65535];
 #endif
-        memset(buffer, 0, length);
+        memset(buffer, 0, size);
 
         int preverrno = errno;
 
-        size_t recvlen = recv(s, buffer, length, 0);
+        recvdata data;
+        data.length = recv(s, buffer, size, 0);
+        data.value = buffer;
+        data.strvalue.assign(buffer, data.length);
         
-        if (recvlen == std::string::npos || errno == 104) { errno = preverrno; return ""; }
-        return std::string(buffer, buffer + recvlen);
+        if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
+
+        return data;
     }
 
-    recvdata srecv_char(int length) {
-#ifndef _DISABLE_RECV_LIMIT
-        if (length > 32768) {
+    recvdata srecvfrom(size_t size) {
+        sockaddr_in sock;
+        socklen_t len;
+
+        #ifndef _DISABLE_RECV_LIMIT
+        if (size > 32768) {
             std::cout << "Error: srecv_char max value 32768" << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -264,17 +285,17 @@ public:
 #else
         char buffer[65535];
 #endif  
-        memset(buffer, 0, length);
-
         int preverrno = errno;
 
         recvdata data;
-        data.length = recv(s, buffer, length, 0);
+        data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len);
         data.value = buffer;
+        data.strvalue.assign(buffer, data.length);
+        data.addr = sockaddr_in_to_address(sock);
 
-        if (data.length == std::string::npos || errno == 104) { errno = preverrno; data.length = 0; }
+        if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
+
         return data;
-
     }
 
     void sclose() {
