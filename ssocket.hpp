@@ -27,16 +27,16 @@
 #define GETSOCKETERRNO() (errno)
 #endif
 
-struct address {
+struct sockaddress_t {
     std::string ip;
     int port;
 };
 
-struct recvdata {
-    std::string strvalue;
-    void* value;
+struct sockrecv_t {
+    std::string string;
+    void* buffer;
     ssize_t length;
-    address addr;
+    sockaddress_t addr;
 };
 
 struct ret {
@@ -69,7 +69,7 @@ class SSocket {
         return tmpaddr;
     }
 
-    address sockaddr_in_to_address(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
+    sockaddress_t sockaddr_in_to_address(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
 public:
     sockaddr_in client, my_addr;
 #ifdef _WIN32
@@ -123,7 +123,7 @@ public:
     }
 
 
-    address sgetsockname() {
+    sockaddress_t sgetsockname() {
         memset(&my_addr, 0, sizeof(my_addr));
         int addrlen = sizeof(my_addr);
 #ifdef _WIN32
@@ -242,15 +242,15 @@ public:
         return sendto(s, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
     }
 
-    size_t ssendto(char* buf, size_t size, address addr) { return ssendto(buf, size, addr.ip, addr.port); }
+    size_t ssendto(char* buf, size_t size, sockaddress_t addr) { return ssendto(buf, size, addr.ip, addr.port); }
 
     size_t ssendto(std::string buf, std::string ipaddr, int port) { return ssendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
 
-    size_t ssendto(std::string buf, address addr) { return ssendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
+    size_t ssendto(std::string buf, sockaddress_t addr) { return ssendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
     
-    size_t ssendto(recvdata data) { return ssendto((char*)data.value, data.length, data.addr.ip, data.addr.port); }
+    size_t ssendto(sockrecv_t data) { return ssendto((char*)data.buffer, data.length, data.addr.ip, data.addr.port); }
 
-    recvdata srecv(int size) {
+    sockrecv_t srecv(int size) {
 #ifndef _DISABLE_RECV_LIMIT
         if (size > 32768) {
             std::cout << "Error: srecv max value 32768" << std::endl;
@@ -264,17 +264,17 @@ public:
 
         int preverrno = errno;
 
-        recvdata data;
+        sockrecv_t data;
         data.length = recv(s, buffer, size, 0);
-        data.value = buffer;
-        data.strvalue.assign(buffer, data.length);
+        data.buffer = buffer;
+        data.string.assign(buffer, data.length);
         
         if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
 
         return data;
     }
 
-    recvdata srecvfrom(size_t size) {
+    sockrecv_t srecvfrom(size_t size) {
         sockaddr_in sock;
         socklen_t len = sizeof(sockaddr_in);
 
@@ -289,10 +289,10 @@ public:
 #endif  
         int preverrno = errno;
         
-        recvdata data;
+        sockrecv_t data;
         data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len);
-        data.value = buffer;
-        data.strvalue.assign(buffer, data.length);
+        data.buffer = buffer;
+        data.string.assign(buffer, data.length);
         data.addr = sockaddr_in_to_address(sock);
 
         if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
