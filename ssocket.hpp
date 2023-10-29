@@ -269,7 +269,6 @@ public:
         sockrecv_t data;
         if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
         data.buffer = buffer;
-        std::cout << data.length << std::endl;
         data.string.assign(buffer, data.length);
 
         return data;
