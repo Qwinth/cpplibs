@@ -1,4 +1,4 @@
-// version 1.8.2
+// version 1.8.3
 #pragma once
 #include <iostream>
 #include <string>
@@ -70,7 +70,7 @@ class SSocket {
         return tmpaddr;
     }
 
-    sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), htons(addr.sin_port)}; }
+    sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)}; }
 public:
 #ifdef _WIN32
     WSADATA wsa;
