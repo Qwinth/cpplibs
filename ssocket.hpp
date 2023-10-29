@@ -1,4 +1,4 @@
-// version 1.8
+// version 1.8.1
 #pragma once
 #include <iostream>
 #include <string>
@@ -267,11 +267,9 @@ public:
         int preverrno = errno;
 
         sockrecv_t data;
-        data.length = recv(s, buffer, size, 0);
+        if (!(data.length = recv(s, buffer, size, 0)) || errno == 104) { errno = preverrno; return {}; }
         data.buffer = buffer;
         data.string.assign(buffer, data.length);
-        
-        if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
 
         return data;
     }
@@ -292,12 +290,10 @@ public:
         int preverrno = errno;
         
         sockrecv_t data;
-        data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len);
+        if (!(data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) || errno == 104) { errno = preverrno; return {}; }
         data.buffer = buffer;
         data.string.assign(buffer, data.length);
         data.addr = sockaddr_in_to_sockaddress_t(sock);
-
-        if (data.length < 0 || errno == 104) { errno = preverrno; return {}; }
 
         return data;
     }
