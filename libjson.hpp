@@ -1,4 +1,4 @@
-// version 1.4
+// version 1.5
 #pragma once
 #include <iostream>
 #include <string>
@@ -13,7 +13,6 @@
 
 enum JsonTypes {
     JSONNONE,
-    JSONNULL,
     JSONSTRING,
     JSONINTEGER,
     JSONFLOAT,
@@ -33,10 +32,10 @@ public:
     std::vector<std::string> objectsOrder;
     std::map<std::string, JsonNode> objects;
 
-    JsonNode operator[](std::string str) { return objects[str]; }
-    JsonNode operator[](size_t num) { return array[num]; }
+    JsonNode operator[](std::string str) { return (objects.find(str) != objects.end()) ? objects[str] : JsonNode(); }
+    JsonNode operator[](size_t num) { return (num < array.size()) ? array[num] : JsonNode(); }
 
-    bool is_null() { return type == JSONNULL; }
+    bool is_null() { return type == JSONNONE; }
 
     size_t size() {
         if (type == JSONOBJECT) return objects.size();
@@ -174,7 +173,7 @@ class Json {
         else if (str[pos] == '{') return parseObject(str, pos);
         else if (!str.size()) return { {}, pos };
 
-        return { {.type = JSONNULL}, pos };
+        return { {.type = JSONNONE}, pos + 4 };
     }
 
     std::pair<JsonNode, size_t> parseString(std::string& str, size_t pos) {
@@ -284,12 +283,11 @@ class Json {
             else if (token == ',') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { std::cout << "Syntax error: object missing value" << std::endl; exit(1); }
 
             else if (token > 32 && token < 127) {
-                if (iskey == false && token != '"') { std::cout << "Syntax error: value must be a string" << std::endl; exit(1); }
-
                 auto tmp = parseAny(str, i);
                 tmpobj = tmp.first;
                 i = tmp.second;
 
+                if (iskey == false && (tmp.first.type != JSONSTRING && tmp.first.type != JSONNONE)) { std::cout << "Syntax error: value must be a string" << std::endl; exit(1); }
                 if (iskey && isvalue) { std::cout << "Syntax error: expected comma" << std::endl; exit(1); }
                 if (iskey) isvalue = true;
                 iskey = true;
@@ -314,7 +312,7 @@ public:
         std::string str;
 
         switch (node.type) {
-        case JSONNULL: {
+        case JSONNONE: {
             str += "null";
             break;
         }
