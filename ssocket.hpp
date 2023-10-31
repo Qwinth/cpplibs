@@ -32,7 +32,7 @@ struct sockaddress_t {
     std::string ip;
     int port;
 
-    std::string str() { return ip + std::to_string(port); }
+    std::string str() { return strformat("%s:%d", ip.c_str(), port); }
 };
 
 struct sockrecv_t {
