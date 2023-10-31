@@ -1,4 +1,4 @@
-// version 1.8.4
+// version 1.8.5
 #pragma once
 #include <iostream>
 #include <string>
@@ -42,11 +42,6 @@ struct sockrecv_t {
     sockaddress_t addr;
 };
 
-struct ret {
-    int retval;
-    int error;
-};
-
 class SSocket {
     int af;
 
@@ -73,6 +68,8 @@ class SSocket {
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)}; }
+
+    friend bool operator==(SSocket arg1, SSocket arg2);
 public:
 #ifdef _WIN32
     WSADATA wsa;
@@ -311,3 +308,7 @@ public:
 #endif
     }
 };
+
+bool operator==(sockaddress_t arg1, sockaddress_t arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
+bool operator==(sockrecv_t arg1, sockrecv_t arg2) { return arg1.addr == arg2.addr && arg1.string == arg2.string && arg1.length == arg2.length; }
+bool operator==(SSocket arg1, SSocket arg2) { return arg1.af == arg2.af && arg1.s == arg2.s; }
