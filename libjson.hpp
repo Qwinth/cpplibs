@@ -80,20 +80,20 @@ private:
     }
 
 public:
-    void addPair(std::string key, std::string value) { objects[key] = {.type = JSONSTRING, .str = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, const char* value) { objects[key] = {.type = JSONSTRING, .str = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, short value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, int value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, long long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, float value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, long double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, bool value) { objects[key] = {.type = JSONBOOLEAN, .boolean = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = {.type = JSONARRAY, .array = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = {.type = JSONOBJECT, .objects = value}; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, JsonNode value) { objects[key] = value; objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, AnyType value) { objects[key] = (AnyType_to_JsonNode(value)); objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, std::string value) { objects[key] = {.type = JSONSTRING, .str = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, const char* value) { objects[key] = {.type = JSONSTRING, .str = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, short value) { objects[key] = {.type = JSONINTEGER, .integer = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, int value) { objects[key] = {.type = JSONINTEGER, .integer = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, long long value) { objects[key] = {.type = JSONINTEGER, .integer = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, float value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, long double value) { objects[key] = {.type = JSONFLOAT, .lfloat = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, bool value) { objects[key] = {.type = JSONBOOLEAN, .boolean = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = {.type = JSONARRAY, .array = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = {.type = JSONOBJECT, .objects = value}; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, JsonNode value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    void addPair(std::string key, AnyType value) { objects[key] = (AnyType_to_JsonNode(value)); if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void arrayAppend(JsonNode value) { array.push_back(value); type = JSONARRAY; }
 };
 
