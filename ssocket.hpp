@@ -91,7 +91,7 @@ public:
         WSAStartup(MAKEWORD(2, 2), &wsa);
     }
 #elif __linux__
-    SSocket(int ss) { s = ss; }
+    SSocket(int _s, int _af) { s = _s; af = _af; }
 #endif
     /*~SSocket() {
         this->sclose();
@@ -178,7 +178,7 @@ public:
 #endif
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { new_socket, sockaddr_in_to_sockaddress_t(client) };
+        return { {new_socket, af}, sockaddr_in_to_sockaddress_t(client) };
     }
 
     size_t ssend(std::string data) {
