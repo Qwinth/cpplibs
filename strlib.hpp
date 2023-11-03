@@ -1,4 +1,4 @@
-// version 1.8
+// version 1.8.1
 #pragma once
 #include <string>
 #include <vector>
@@ -401,8 +401,8 @@ std::string unpackNumber(std::string& str) {
     return ret;
 }
 
-void substr(int pos, int len, const char* src, char* dest) {
-    memcpy(dest, &src[pos], len);
+void substr(size_t pos, size_t len, const char* src, char* dest, size_t destlen = 0) {
+    memcpy(&dest[destlen], &src[pos], len);
 }
 
 std::string sstrerror(int e) {
