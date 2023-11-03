@@ -42,8 +42,19 @@ struct sockrecv_t {
     sockaddress_t addr;
 };
 
-class SSocket {
+struct sockconf_t {
+#ifdef _WIN32
+    SOCKET s;
+#else
+    int s;
+#endif
+    int type;
     int af;
+};
+
+class SSocket {
+    int af = AF_INET;
+    int type = SOCK_STREAM;
 
     bool checkIp(std::string ipaddr) {
         for (auto &i : split(ipaddr, '.')) if (!std::all_of(i.begin(), i.end(), ::isdigit)) return false;
@@ -77,21 +88,24 @@ public:
 #elif __linux__
     int s;
 #endif
-
-    SSocket(int _af, int type) {
+    SSocket() {}
+    SSocket(int _af, int _type) {
         af = _af;
+        type = type;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        if ((s = socket(af, type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if ((s = socket(af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
     }
 #ifdef _WIN32
-    SSocket(SOCKET ss) {
-        s = ss;
+    SSocket(sockconf_t conf) {
+        s = conf.s;
+        af = conf.af;
+        type = conf.type;
         WSAStartup(MAKEWORD(2, 2), &wsa);
     }
 #elif __linux__
-    SSocket(int _s, int _af) { s = _s; af = _af; }
+    SSocket(sockconf_t conf) { s = conf.s; af = conf.af; type = conf.type; }
 #endif
     /*~SSocket() {
         this->sclose();
@@ -178,7 +192,7 @@ public:
 #endif
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { {new_socket, af}, sockaddr_in_to_sockaddress_t(client) };
+        return { (sockconf_t){new_socket, type, af}, sockaddr_in_to_sockaddress_t(client) };
     }
 
     size_t ssend(std::string data) {
