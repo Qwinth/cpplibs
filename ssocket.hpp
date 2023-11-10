@@ -1,4 +1,4 @@
-// version 1.8.6
+// version 1.8.8
 #pragma once
 #include <iostream>
 #include <string>
@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <fcntl.h>
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
@@ -50,11 +51,15 @@ struct sockconf_t {
 #endif
     int type;
     int af;
+    sockaddress_t addr;
 };
 
 class SSocket {
     int af = AF_INET;
     int type = SOCK_STREAM;
+    sockaddress_t address;
+
+    bool blocking = true;
 
     bool checkIp(std::string ipaddr) {
         for (auto &i : split(ipaddr, '.')) if (!std::all_of(i.begin(), i.end(), ::isdigit)) return false;
@@ -102,16 +107,24 @@ public:
         s = conf.s;
         af = conf.af;
         type = conf.type;
+        address = conf.addr;
         WSAStartup(MAKEWORD(2, 2), &wsa);
     }
 #elif __linux__
-    SSocket(sockconf_t conf) { s = conf.s; af = conf.af; type = conf.type; }
+    SSocket(sockconf_t conf) {
+        s = conf.s;
+        af = conf.af;
+        type = conf.type;
+        address = conf.addr;
+    }
 #endif
-    /*~SSocket() {
-        this->sclose();
-        std::cout << "SSocket removed!" << std::endl;
-    }*/
+    void setblocking(bool _blocking) {
+        if (_blocking) fcntl(s, F_SETFL, fcntl(s, F_GETFL) & ~O_NONBLOCK);
+        else fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);
+        blocking = _blocking;
+    }
 
+    bool is_blocking() { return blocking; }
 
     void sconnect(std::string ipaddr, int port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
@@ -192,7 +205,7 @@ public:
 #endif
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { (sockconf_t){new_socket, type, af}, sockaddr_in_to_sockaddress_t(client) };
+        return { (sockconf_t){new_socket, type, af, sockaddr_in_to_sockaddress_t(client)}, sockaddr_in_to_sockaddress_t(client) };
     }
 
     size_t ssend(std::string data) {
@@ -283,6 +296,7 @@ public:
         if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
         data.buffer = buffer;
         data.string.assign(buffer, data.length);
+        data.addr = address;
 
         return data;
     }
