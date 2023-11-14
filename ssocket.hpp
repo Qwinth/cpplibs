@@ -1,4 +1,4 @@
-// version 1.8.8
+// version 1.8.9
 #pragma once
 #include <iostream>
 #include <string>
@@ -100,24 +100,19 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        if ((s = socket(af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        create_socket();
     }
+
+    SSocket(sockconf_t conf) {
+        s = conf.s;
+        af = conf.af;
+        type = conf.type;
+        address = conf.addr;
 #ifdef _WIN32
-    SSocket(sockconf_t conf) {
-        s = conf.s;
-        af = conf.af;
-        type = conf.type;
-        address = conf.addr;
         WSAStartup(MAKEWORD(2, 2), &wsa);
-    }
-#elif __linux__
-    SSocket(sockconf_t conf) {
-        s = conf.s;
-        af = conf.af;
-        type = conf.type;
-        address = conf.addr;
-    }
 #endif
+    }
+
     void setblocking(bool _blocking) {
         if (_blocking) fcntl(s, F_SETFL, fcntl(s, F_GETFL) & ~O_NONBLOCK);
         else fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);
@@ -125,6 +120,15 @@ public:
     }
 
     bool is_blocking() { return blocking; }
+
+    void create_socket() { if ((s = socket(af, type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
+
+    void baseServer(std::string ipaddr, int port, bool reuseaddr = false, bool listen = 0) {
+        create_socket();
+        if (reuseaddr) ssetsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
+        sbind(ipaddr, port);
+        slisten(listen);
+    }
 
     void sconnect(std::string ipaddr, int port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
