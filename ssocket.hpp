@@ -123,7 +123,7 @@ public:
 
     void create_socket() { if ((s = socket(af, type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
 
-    void baseServer(std::string ipaddr, int port, bool reuseaddr = false, bool listen = 0) {
+    void baseServer(std::string ipaddr, int port, bool reuseaddr = false, int listen = 0) {
         create_socket();
         if (reuseaddr) ssetsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
         sbind(ipaddr, port);
@@ -232,10 +232,8 @@ public:
         size_t size = data.length();
         size_t sended = 0;
 
-        while (sended < size) {
-            int i = ssend(data.substr(sended, size - sended));
-            sended += i;
-        }
+        while (sended < size) sended += ssend(data.substr(sended, size - sended));
+        
         return sended;
     }
 
@@ -245,8 +243,7 @@ public:
 
         while (sended < length) {
             substr(sended, length - sended, (const char*)chardata, buff);
-            int i = ssend(buff, length - sended);
-            sended += i;
+            sended += ssend(buff, length - sended);
         }
 
         delete[] buff;
