@@ -1,4 +1,4 @@
-// version 1.9.1c1
+// version 1.9.1c2
 #pragma once
 #include <iostream>
 #include <string>
@@ -189,9 +189,9 @@ public:
         int optval;
         socklen_t error_code_size = sizeof(int);
 #ifdef _WIN32
-        getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&optval, &error_code_size);
+        getsockopt(s, lovel, optname, (char*)&optval, &error_code_size);
 #elif __linux__
-        getsockopt(s, SOL_SOCKET, SO_ERROR, &optval, &error_code_size);
+        getsockopt(s, level, optname, &optval, &error_code_size);
 #endif
         return optval;
     }
