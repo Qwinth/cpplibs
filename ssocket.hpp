@@ -96,7 +96,7 @@ public:
     SSocket() {}
     SSocket(int _af, int _type) {
         af = _af;
-        type = type;
+        type = _type;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
@@ -122,6 +122,7 @@ public:
     bool is_blocking() { return blocking; }
 
     void create_socket() { if ((s = socket(af, type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
+    void create_socket(int _af, int _type) { af = _af; type = _type; if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
 
     void baseServer(std::string ipaddr, int port, bool reuseaddr = false, int listen = 0) {
         create_socket();
@@ -178,11 +179,11 @@ public:
     }
 
     int sgetsockopt(int level, int optname, int optval) {
-        int error_code_size = sizeof(int);
+        socklen_t error_code_size = sizeof(int);
 #ifdef _WIN32
-        int r = getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)optval, &error_code_size);
+        int r = getsockopt(s, level, optname, (char*)optval, &error_code_size);
 #elif __linux__
-        int r = getsockopt(s, SOL_SOCKET, SO_ERROR, &optval, (socklen_t*)&error_code_size);
+        int r = getsockopt(s, level, optname, &optval, &error_code_size);
 #endif
         return r;
     }

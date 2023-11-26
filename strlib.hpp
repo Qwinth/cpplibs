@@ -105,8 +105,8 @@ std::vector<std::string> split(std::string s, char delimiter, int limit = 0) {
 std::string urlDecode(std::string &SRC) {
     std::string ret;
     char ch;
-    int i, ii;
-    for (i=0; i<SRC.length(); i++) {
+    int ii;
+    for (size_t i = 0; i<SRC.length(); i++) {
         if (int(SRC[i])==37) {
 #ifdef _WIN32
             sscanf_s(SRC.substr(i+1,2).c_str(), "%x", &ii);
@@ -273,7 +273,7 @@ static void cp2utf1(char* out, const char* in) {
 }
 std::string cp1251toutf8(std::string s) {
     int c, i;
-    size_t len = s.size();
+    int len = s.size();
     std::string ns;
     for (i = 0; i < len; i++) {
         c = s[i];
