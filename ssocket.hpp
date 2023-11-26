@@ -1,4 +1,4 @@
-// version 1.8.9
+// version 1.9.1c1
 #pragma once
 #include <iostream>
 #include <string>
@@ -6,7 +6,8 @@
 #include <algorithm>
 #include <vector>
 #include <utility>
-#include <string.h>
+#include <cstring>
+#include <cstdint>
 #include "strlib.hpp"
 
 
@@ -16,6 +17,10 @@
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #define GETSOCKETERRNO() (WSAGetLastError())
+#define MSG_CONFIRM 0
+
+typedef long ssize_t;
+typedef int socklen_t;
 
 #elif __linux__
 #include <sys/socket.h>
@@ -114,15 +119,21 @@ public:
     }
 
     void setblocking(bool _blocking) {
+    #ifdef __linux__
         if (_blocking) fcntl(s, F_SETFL, fcntl(s, F_GETFL) & ~O_NONBLOCK);
         else fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);
+    #else
+        unsigned long __blocking = !_blocking;
+        ioctlsocket(s, FIONBIO, &__blocking);
+    #endif
         blocking = _blocking;
     }
 
     bool is_blocking() { return blocking; }
 
     void create_socket() { if ((s = socket(af, type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
-    void create_socket(int _af, int _type) { af = _af; type = _type; if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
+
+    void create_socket(int _af, int _type) { af = _af; type = _type; if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); } 
 
     void baseServer(std::string ipaddr, int port, bool reuseaddr = false, int listen = 0) {
         create_socket();
@@ -156,19 +167,15 @@ public:
 
     sockaddress_t sgetsockname() {
         sockaddr_in my_addr;
-        int addrlen = sizeof(sockaddr_in);
+        socklen_t addrlen = sizeof(sockaddr_in);
 
-#ifdef _WIN32
         if (getsockname(s, (sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
-#elif __linux__
-        if (getsockname(s, (sockaddr*)&my_addr, (socklen_t*)&addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
-#endif
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
     void _ssetsockopt(int level, int optname, void* optval, int size) {
 #ifdef _WIN32
-        if (setsockopt(s, level, optname, reinterpret_cast<const char*>(optval), sizeof(reinterpret_cast<const char*>(&optval))) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (setsockopt(s, level, optname, (char*)optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #elif __linux__
         if (setsockopt(s, level, optname, optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
@@ -178,14 +185,15 @@ public:
         _ssetsockopt(level, optname, &optval, sizeof(int));
     }
 
-    int sgetsockopt(int level, int optname, int optval) {
+    int sgetsockopt(int level, int optname) {
+        int optval;
         socklen_t error_code_size = sizeof(int);
 #ifdef _WIN32
-        int r = getsockopt(s, level, optname, (char*)optval, &error_code_size);
+        getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&optval, &error_code_size);
 #elif __linux__
-        int r = getsockopt(s, level, optname, &optval, &error_code_size);
+        getsockopt(s, SOL_SOCKET, SO_ERROR, &optval, &error_code_size);
 #endif
-        return r;
+        return optval;
     }
 
     void slisten(int clients) {
@@ -201,16 +209,13 @@ public:
 
     std::pair<SSocket, sockaddress_t> saccept() {
         sockaddr_in client;
-        int c = sizeof(sockaddr_in);
+        socklen_t c = sizeof(sockaddr_in);
 
-#ifdef _WIN32
-        auto new_socket = accept(s, (sockaddr*)&client, &c);
-#elif __linux__
         auto new_socket = accept(s, (sockaddr*)&client, (socklen_t*)&c);
-#endif
+
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { (sockconf_t){new_socket, type, af, sockaddr_in_to_sockaddress_t(client)}, sockaddr_in_to_sockaddress_t(client) };
+        return { sockconf_t({new_socket, this->type, this->af, sockaddr_in_to_sockaddress_t(client)}), sockaddr_in_to_sockaddress_t(client) };
     }
 
     size_t ssend(std::string data) {
@@ -342,3 +347,7 @@ public:
 bool operator==(sockaddress_t arg1, sockaddress_t arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
 bool operator==(sockrecv_t arg1, sockrecv_t arg2) { return arg1.addr == arg2.addr && arg1.string == arg2.string && arg1.length == arg2.length; }
 bool operator==(SSocket arg1, SSocket arg2) { return arg1.af == arg2.af && arg1.s == arg2.s; }
+
+bool operator!=(sockaddress_t arg1, sockaddress_t arg2) { return !(arg1 == arg2); }
+bool operator!=(sockrecv_t arg1, sockrecv_t arg2) { return !(arg1 == arg2); }
+bool operator!=(SSocket arg1, SSocket arg2) { return !(arg1 == arg2); }
