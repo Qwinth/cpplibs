@@ -99,7 +99,7 @@ public:
 
 class Json {
 
-    bool check_prev(std::string& str, size_t pos, char arg) {
+    bool check_prev(std::string& str, ssize_t pos, char arg) {
         if (pos - 1 < 0) return false;
         return str[pos - 1] == arg;
     }
@@ -124,7 +124,7 @@ class Json {
 
     size_t getBrClosePos(std::string& str, size_t pos, char brOpen, char brClose) {
         size_t ret = std::string::npos;
-        size_t i;
+        ssize_t i;
         bool quotes = false;
         int br = 0;
 
@@ -348,7 +348,7 @@ public:
         case JSONARRAY: {
             str += "[";
 
-            for (int i = 0; i < node.array.size(); i++) {
+            for (size_t i = 0; i < node.array.size(); i++) {
                 str += dump(node[i]);
 
                 if (i + 1 < node.array.size()) str += ", ";
@@ -370,7 +370,7 @@ public:
                     str += '"' + encodeUnicodeSequence(i) + "\": ";
                     str += dump(j);
 
-                    if (distance(node.objectsOrder.begin(), find(node.objectsOrder.begin(), node.objectsOrder.end(), i)) + 1 < node.objects.size()) str += ", ";
+                    if (distance(node.objectsOrder.begin(), find(node.objectsOrder.begin(), node.objectsOrder.end(), i)) + 1 < (ssize_t)node.objects.size()) str += ", ";
                 }
 
                 else std::cout << "Warning: object dublicated key" << std::endl;
