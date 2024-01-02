@@ -1,4 +1,4 @@
-// version 1.2
+// version 1.2-c1
 #include <string>
 #include <vector>
 #include <map>
@@ -54,9 +54,8 @@ public:
                 std::string rawname = (find_raw_args(i.flag1) >= 0) ? i.flag1 : i.flag2;
                 std::string retname = (i.flag2.length() > 0) ? i.flag2 : i.flag1;
 
-                if (i.without_value) {
-                    parsed_args[retname] = { .type = ANYBOOLEAN, .boolean = true };
-                } else {
+                if (i.without_value) parsed_args[retname] = { .type = ANYBOOLEAN, .boolean = true };
+                else {
                     if (i.nargs) {
                         AnyType obj;
                         obj.type = ANYLIST;
