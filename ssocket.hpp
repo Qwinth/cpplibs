@@ -1,4 +1,4 @@
-// version 1.9.1-c3
+// version 1.9.2
 #pragma once
 #include <iostream>
 #include <string>
@@ -285,15 +285,21 @@ public:
     
     size_t ssendto(sockrecv_t data) { return ssendto((char*)data.buffer, data.length, data.addr.ip, data.addr.port); }
 
-    sockrecv_t srecv(int size) {
-#ifndef _DISABLE_RECV_LIMIT
+    sockrecv_t srecv(size_t size) {
+#ifndef _DISABLE_HALF_RECV_LIMIT
         if (size > 32768) {
-            std::cout << "Error: srecv max value 32768" << std::endl;
-            exit(EXIT_FAILURE);
+            std::cout << "Warning: srecv max value 32768" << std::endl;
+            size = 32768;
         }
+
         char buffer[32768];
 #else
-        char buffer[65535];
+        if (size > 65536) {
+            std::cout << "Warning: srecv max value 65536" << std::endl;
+            size = 65536;
+        }
+
+        char buffer[65536];
 #endif
         memset(buffer, 0, size);
 
@@ -312,15 +318,23 @@ public:
         sockaddr_in sock;
         socklen_t len = sizeof(sockaddr_in);
 
-        #ifndef _DISABLE_RECV_LIMIT
+#ifndef _DISABLE_HALF_RECV_LIMIT
         if (size > 32768) {
-            std::cout << "Error: srecv_char max value 32768" << std::endl;
-            exit(EXIT_FAILURE);
+            std::cout << "Warning: srecv max value 32768" << std::endl;
+            size = 32768;
         }
+
         char buffer[32768];
 #else
-        char buffer[65535];
-#endif  
+        if (size > 65536) {
+            std::cout << "Warning: srecv max value 65536" << std::endl;
+            size = 65536;
+        }
+
+        char buffer[65536];
+#endif 
+        memset(buffer, 0, size);
+
         int preverrno = errno;
         
         sockrecv_t data;
