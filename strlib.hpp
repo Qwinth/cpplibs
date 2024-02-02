@@ -48,7 +48,7 @@ std::string toLower(std::string str) {
     return ret;
 }
 
-std::string format(const char *const format, ...) {
+std::string strformat(const char *const format, ...) {
     auto temp = std::vector<char> {};
     auto length = std::size_t {63};
     std::va_list args;
