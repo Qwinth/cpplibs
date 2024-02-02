@@ -1,9 +1,9 @@
-// version 1.8.1
+// version 1.8.2
 #pragma once
 #include <string>
 #include <vector>
 #include <map>
-#include <stdarg.h>
+#include <cstdarg>
 #include <random>
 #include <sstream>
 #include <cstring>
@@ -48,23 +48,21 @@ std::string toLower(std::string str) {
     return ret;
 }
 
-std::string strformat(const char* fmt, ...){
-    int size = 512;
-    char* buffer = 0;
-    buffer = new char[size];
-    va_list vl;
-    va_start(vl, fmt);
-    int nsize = vsnprintf(buffer, size, fmt, vl);
-    if(size<=nsize){ //fail delete buffer and try again
-        delete[] buffer;
-        buffer = 0;
-        buffer = new char[nsize+1]; //+1 for /0
-        nsize = vsnprintf(buffer, size, fmt, vl);
-    }
-    std::string ret(buffer);
-    va_end(vl);
-    delete[] buffer;
-    return ret;
+std::string format(const char *const format, ...) {
+    auto temp = std::vector<char> {};
+    auto length = std::size_t {63};
+    std::va_list args;
+
+    while (temp.size() <= length) {
+        temp.resize(length + 1);
+        va_start(args, format);
+        const auto status = std::vsnprintf(temp.data(), temp.size(), format, args);
+        va_end(args);
+        if (status < 0)
+            throw std::runtime_error {"string formatting error"};
+        length = static_cast<std::size_t>(status);
+        }
+    return std::string {temp.data(), length};
 }
 
 std::vector<std::string> split(std::string s, std::string delimiter, int limit = 0) {
