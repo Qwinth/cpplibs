@@ -1,4 +1,4 @@
-// version 1.9.4
+// version 1.9.4-c1
 #pragma once
 #include <iostream>
 #include <string>
@@ -36,7 +36,7 @@ typedef int socklen_t;
 
 struct sockaddress_t {
     std::string ip;
-    int port;
+    int port = 0;
 
     std::string str() { return strformat("%s:%d", ip.c_str(), port); }
 };
@@ -44,7 +44,7 @@ struct sockaddress_t {
 struct sockrecv_t {
     std::string string;
     void* buffer = nullptr;
-    ssize_t length;
+    ssize_t length = 0;
     sockaddress_t addr;
 
     ~sockrecv_t() { delete[] buffer; }
