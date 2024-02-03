@@ -104,9 +104,8 @@ class SSocket {
 
             tmpaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
         }
-        else {
-            tmpaddr.sin_addr.s_addr = INADDR_ANY;
-        }
+        
+        else tmpaddr.sin_addr.s_addr = INADDR_ANY;
         tmpaddr.sin_family = af;
         tmpaddr.sin_port = htons(port);
 
