@@ -43,7 +43,7 @@ struct sockaddress_t {
 
 struct sockrecv_t {
     std::string string;
-    void* buffer = nullptr;
+    char* buffer = nullptr;
     ssize_t length = 0;
     sockaddress_t addr;
 
