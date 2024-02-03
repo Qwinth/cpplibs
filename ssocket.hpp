@@ -1,4 +1,4 @@
-// version 1.9.4-c2
+// version 1.9.4-c3
 #pragma once
 #include <iostream>
 #include <string>
@@ -51,7 +51,7 @@ struct sockrecv_t {
     sockrecv_t() {}
     sockrecv_t(const sockrecv_t& other) noexcept {
         buffer = new char[other.length];
-        memcpy(buffer, other.buffer, other.length);
+        std::memcpy(buffer, other.buffer, other.length);
 
         string = other.string;
         length = other.length;
@@ -291,7 +291,7 @@ public:
 #elif __linux__
             size += send(s, buffer, file.gcount(), MSG_NOSIGNAL);
 #endif
-            memset(buffer, 0, sizeof(buffer));
+            std::memset(buffer, 0, sizeof(buffer));
         }
         return size;
     }
@@ -313,20 +313,20 @@ public:
     sockrecv_t srecv(size_t size) {
 #ifndef _DISABLE_HALF_RECV_LIMIT
         if (size > 32768) {
-            std::cout << "Warning: srecv max value 32768" << std::endl;
+            std::cerr << "Warning: srecv max value 32768" << std::endl;
             size = 32768;
         }
 
         char buffer[32768];
 #else
         if (size > 65536) {
-            std::cout << "Warning: srecv max value 65536" << std::endl;
+            std::cerr << "Warning: srecv max value 65536" << std::endl;
             size = 65536;
         }
 
         char buffer[65536];
 #endif
-        memset(buffer, 0, size);
+        std::memset(buffer, 0, size);
 
         int preverrno = errno;
 
@@ -334,7 +334,7 @@ public:
         if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
         data.buffer = new char[data.length];
 
-        memcpy(data.buffer, buffer, data.length);
+        std::memcpy(data.buffer, buffer, data.length);
         data.string.assign(buffer, data.length);
         data.addr = address;
 
@@ -360,13 +360,15 @@ public:
 
         char buffer[65536];
 #endif 
-        memset(buffer, 0, size);
+        std::memset(buffer, 0, size);
 
         int preverrno = errno;
         
         sockrecv_t data;
         if ((data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) { errno = preverrno; return {}; }
-        data.buffer = buffer;
+        data.buffer = new char[data.length];
+
+        std::memcpy(data.buffer, buffer, data.length);
         data.string.assign(buffer, data.length);
         data.addr = sockaddr_in_to_sockaddress_t(sock);
 
