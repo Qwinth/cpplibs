@@ -16,6 +16,11 @@
 #ifndef _WIN32
 #include <codecvt>
 #endif
+#if __cplusplus < 202002L || (_WIN32)
+namespace std {
+    typedef std::basic_string<u_char> u8string;
+}
+#endif
 
 
 std::string operator*(std::string str, size_t num) {
@@ -225,15 +230,15 @@ std::string wstr2str(const std::wstring& wide_string)
 }
 #endif
 
-#if __cplusplus >= 202002L || (_WIN32 && __cplusplus >= 199711L)
+// #if __cplusplus >= 202002L || (_WIN32 && __cplusplus >= 199711L)
 std::string u8tostr(std::u8string str) {
     return (char*)str.c_str();
 }
 
 std::u8string strtou8(std::string str) {
-    return (char8_t*)str.c_str();
+    return (u_char*)str.c_str();
 }
-#endif
+// #endif
 
 static void cp2utf1(char* out, const char* in) {
     static const int table[128] = {
