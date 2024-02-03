@@ -1,4 +1,4 @@
-// version 1.9.2
+// version 1.9.4
 #pragma once
 #include <iostream>
 #include <string>
@@ -43,9 +43,34 @@ struct sockaddress_t {
 
 struct sockrecv_t {
     std::string string;
-    void* buffer;
+    void* buffer = nullptr;
     ssize_t length;
     sockaddress_t addr;
+
+    ~sockrecv_t() { delete[] buffer; }
+    sockrecv_t() {}
+    sockrecv_t(const sockrecv_t& other) noexcept {
+        buffer = new char[other.length];
+        memcpy(buffer, other.buffer, other.length);
+
+        string = other.string;
+        length = other.length;
+        addr = other.addr;
+    }
+
+    sockrecv_t& operator=(const sockrecv_t& other) {
+        sockrecv_t copy = other;
+        swap(copy);
+
+        return *this;
+    }
+
+    void swap(sockrecv_t& other) {
+        std::swap(buffer, other.buffer);
+        std::swap(length, other.length);
+        std::swap(string, other.string);
+        std::swap(addr, other.addr);
+    }
 };
 
 struct sockconf_t {
@@ -307,7 +332,9 @@ public:
 
         sockrecv_t data;
         if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
-        data.buffer = buffer;
+        data.buffer = new char[data.length];
+
+        memcpy(data.buffer, buffer, data.length);
         data.string.assign(buffer, data.length);
         data.addr = address;
 
