@@ -242,14 +242,6 @@ public:
         return { sockconf_t({new_socket, this->type, this->af, sockaddr_in_to_sockaddress_t(client)}), sockaddr_in_to_sockaddress_t(client) };
     }
 
-    size_t ssend(std::string data) {
-#ifdef _WIN32
-        return send(s, data.c_str(), data.length(), 0);
-#elif __linux__
-        return send(s, data.c_str(), data.length(), MSG_NOSIGNAL);
-#endif
-    }
-
      size_t ssend(const void* data, size_t length) {
 #ifdef _WIN32
         return send(s, (const char*)data, length, 0);
@@ -258,13 +250,15 @@ public:
 #endif
     }
 
-    size_t ssendall(std::string data) {
-        size_t size = data.length();
-        size_t sended = 0;
+    size_t ssend(std::string data) {
+        return ssend(data.c_str(), data.length());
+    }
 
-        while (sended < size) sended += ssend(data.substr(sended, size - sended));
+    size_t ssend(char ch) {
+        char chbuf[1];
+        chbuf[0] = ch;
         
-        return sended;
+        return ssend(chbuf, 1);
     }
 
     size_t ssendall(const void* chardata, size_t length) {
@@ -278,6 +272,10 @@ public:
 
         delete[] buff;
         return sended;
+    }
+
+    size_t ssendall(std::string data) {
+        return ssendall(data.c_str(), data.size());
     }
 
     size_t ssend_file(std::ifstream& file) {
@@ -338,6 +336,13 @@ public:
         data.addr = address;
 
         return data;
+    }
+
+    char srecvbyte() {
+        sockrecv_t recvbyte = srecv(1);
+
+        if (!recvbyte.length) return 0;
+        return recvbyte.buffer[0];
     }
 
     sockrecv_t srecvfrom(size_t size) {
