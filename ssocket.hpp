@@ -308,31 +308,29 @@ public:
     size_t ssendto(sockrecv_t data) { return ssendto((char*)data.buffer, data.length, data.addr.ip, data.addr.port); }
 
     sockrecv_t srecv(size_t size) {
+        sockrecv_t data;
+
 #ifndef _DISABLE_HALF_RECV_LIMIT
         if (size > 32768) {
             std::cerr << "Warning: srecv max value 32768" << std::endl;
             size = 32768;
         }
 
-        char buffer[32768];
+       data.buffer = new char[size];
 #else
         if (size > 65536) {
             std::cerr << "Warning: srecv max value 65536" << std::endl;
             size = 65536;
         }
 
-        char buffer[65536];
+        data.buffer = new char[size];
 #endif
-        std::memset(buffer, 0, size);
+        std::memset(data.buffer, 0, size);
 
         int preverrno = errno;
 
-        sockrecv_t data;
-        if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
-        data.buffer = new char[data.length];
-
-        std::memcpy(data.buffer, buffer, data.length);
-        data.string.assign(buffer, data.length);
+        if ((data.length = recv(s, data.buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
+        data.string.assign(data.buffer, data.length);
         data.addr = address;
 
         return data;
