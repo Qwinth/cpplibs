@@ -34,35 +34,37 @@ struct Bytes {
 
 std::string toUpper(std::string str) {
     std::string ret;
-    for (char i : str) {
-        ret += std::toupper(i);
-    }
+    for (char i : str) ret += std::toupper(i);
+
     return ret;
 }
 
 std::string toLower(std::string str) {
     std::string ret;
-    for (char i : str) {
-        ret += std::tolower(i);
-    }
+    for (char i : str) ret += std::tolower(i);
+
     return ret;
 }
 
-std::string strformat(const char *const format, ...) {
-    auto temp = std::vector<char> {};
-    auto length = std::size_t {63};
-    std::va_list args;
-
-    while (temp.size() <= length) {
-        temp.resize(length + 1);
-        va_start(args, format);
-        const auto status = std::vsnprintf(temp.data(), temp.size(), format, args);
-        va_end(args);
-        if (status < 0)
-            throw std::runtime_error {"string formatting error"};
-        length = static_cast<std::size_t>(status);
+std::string strformat(const std::string fmt, ...) {
+    int size = ((int)fmt.size()) * 2 + 50;   // Use a rubric appropriate for your code
+    std::string str;
+    va_list ap;
+    while (1) {     // Maximum two passes on a POSIX system...
+        str.resize(size);
+        va_start(ap, fmt);
+        int n = vsnprintf((char *)str.data(), size, fmt.c_str(), ap);
+        va_end(ap);
+        if (n > -1 && n < size) {  // Everything worked
+            str.resize(n);
+            return str;
         }
-    return std::string {temp.data(), length};
+        if (n > -1)  // Needed size returned
+            size = n + 1;   // For null char
+        else
+            size *= 2;      // Guess at a larger size (OS specific)
+    }
+    return str;
 }
 
 std::vector<std::string> split(std::string s, std::string delimiter, int limit = 0) {
@@ -83,21 +85,20 @@ std::vector<std::string> split(std::string s, std::string delimiter, int limit =
     return res;
 }
 
-std::vector<std::string> split(std::string s, char delimiter, int limit = 0) {
-    size_t pos_start = 0, pos_end, delim_len = 1;
-    std::string token;
-    std::vector<std::string> res;
-    int num = 0;
+vector<string> split(string src, string delim, size_t limit = 0) {
+    vector<string> ret;
+    size_t startpos = 0;
+    size_t endpos = 0;
+    size_t count = 0;
 
-    while ((pos_end = s.find(delimiter, pos_start)) != std::string::npos && (num < limit || limit == 0)) {
-        token = s.substr(pos_start, pos_end - pos_start);
-        pos_start = pos_end + delim_len;
-        res.push_back(token);
-        if (limit > 0) num++;
+    while ((count++ < limit || limit == 0) && (endpos = src.find(delim, startpos)) != string::npos) {
+        ret.push_back(src.substr(startpos, endpos - startpos));
+        startpos = endpos + delim.size();
     }
 
-    res.push_back(s.substr(pos_start));
-    return res;
+    ret.push_back(src.substr(startpos));
+
+    return ret;
 }
 
 std::string urlDecode(std::string &SRC) {
