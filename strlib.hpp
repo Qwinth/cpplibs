@@ -17,6 +17,7 @@
 #include <codecvt>
 #endif
 
+
 std::string operator*(std::string str, size_t num) {
     std::string newstr;
     for (size_t i = 0; i < num; i++) newstr += str;
