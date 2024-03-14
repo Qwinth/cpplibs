@@ -1,4 +1,4 @@
-// version 1.8.2
+// version 1.8.2-c1
 #pragma once
 #include <string>
 #include <vector>
@@ -67,31 +67,14 @@ std::string strformat(const std::string fmt, ...) {
     return str;
 }
 
-std::vector<std::string> split(std::string s, std::string delimiter, int limit = 0) {
-    size_t pos_start = 0, pos_end, delim_len = delimiter.length();
-    std::string token;
-    std::vector<std::string> res;
-    int num = 0;
 
-    while ((pos_end = s.find(delimiter, pos_start)) != std::string::npos && (num < limit || limit == 0)) {
-
-        token = s.substr(pos_start, pos_end - pos_start);
-        pos_start = pos_end + delim_len;
-        res.push_back(token);
-        if (limit > 0) num++;
-    }
-
-    res.push_back(s.substr(pos_start));
-    return res;
-}
-
-vector<string> split(string src, string delim, size_t limit = 0) {
-    vector<string> ret;
+std::vector<std::string> split(std::string src, std::string delim, size_t limit = 0) {
+    std::vector<std::string> ret;
     size_t startpos = 0;
     size_t endpos = 0;
     size_t count = 0;
 
-    while ((count++ < limit || limit == 0) && (endpos = src.find(delim, startpos)) != string::npos) {
+    while ((count++ < limit || limit == 0) && (endpos = src.find(delim, startpos)) != std::string::npos) {
         ret.push_back(src.substr(startpos, endpos - startpos));
         startpos = endpos + delim.size();
     }
@@ -99,6 +82,13 @@ vector<string> split(string src, string delim, size_t limit = 0) {
     ret.push_back(src.substr(startpos));
 
     return ret;
+}
+
+std::vector<std::string> split(std::string src, char delim, size_t limit = 0) {
+    std::string delimiter;
+    delimiter += delim;
+
+    return split(src, delimiter, limit);
 }
 
 std::string urlDecode(std::string &SRC) {
