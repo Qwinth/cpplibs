@@ -1,4 +1,4 @@
-// version 1.9.5-c1
+// version 1.9.5-c2
 #pragma once
 #include <iostream>
 #include <string>
@@ -18,6 +18,7 @@
 #pragma comment(lib, "ws2_32.lib")
 #define GETSOCKETERRNO() (WSAGetLastError())
 #define MSG_CONFIRM 0
+#define MSG_WAITALL 0
 
 typedef long ssize_t;
 typedef int socklen_t;
