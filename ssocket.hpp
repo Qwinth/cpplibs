@@ -1,4 +1,4 @@
-// version 1.9.4-c3
+// version 1.9.4-c4
 #pragma once
 #include <iostream>
 #include <string>
@@ -279,10 +279,11 @@ public:
     }
 
     size_t ssend_file(std::ifstream& file) {
-        char buffer[65535];
+        char* buffer = new char[65536];
         size_t size = 0;
+
         while (file.tellg() != -1) {
-            file.read(buffer, 65535);
+            file.read(buffer, 65536);
 #ifdef _WIN32
             size += send(s, buffer, file.gcount(), 0);
 #elif __linux__
@@ -290,6 +291,8 @@ public:
 #endif
             std::memset(buffer, 0, sizeof(buffer));
         }
+
+        delete[] buffer;
         return size;
     }
 
@@ -313,16 +316,13 @@ public:
             std::cerr << "Warning: srecv max value 32768" << std::endl;
             size = 32768;
         }
-
-        char buffer[32768];
 #else
         if (size > 65536) {
             std::cerr << "Warning: srecv max value 65536" << std::endl;
             size = 65536;
         }
-
-        char buffer[65536];
 #endif
+        char* buffer = new char[size];
         std::memset(buffer, 0, size);
 
         int preverrno = errno;
@@ -335,6 +335,7 @@ public:
         data.string.assign(buffer, data.length);
         data.addr = address;
 
+        delete[] buffer;
         return data;
     }
 
@@ -354,16 +355,13 @@ public:
             std::cout << "Warning: srecv max value 32768" << std::endl;
             size = 32768;
         }
-
-        char buffer[32768];
 #else
         if (size > 65536) {
             std::cout << "Warning: srecv max value 65536" << std::endl;
             size = 65536;
         }
-
-        char buffer[65536];
-#endif 
+#endif
+        char* buffer = new char[size];
         std::memset(buffer, 0, size);
 
         int preverrno = errno;
@@ -376,6 +374,7 @@ public:
         data.string.assign(buffer, data.length);
         data.addr = sockaddr_in_to_sockaddress_t(sock);
 
+        delete[] buffer;
         return data;
     }
 

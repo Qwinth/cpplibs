@@ -17,8 +17,6 @@
 #include <codecvt>
 #endif
 
-typedef std::basic_string<char8_t> u8string;
-
 std::string operator*(std::string str, size_t num) {
     std::string newstr;
     for (size_t i = 0; i < num; i++) newstr += str;
