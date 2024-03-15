@@ -374,13 +374,8 @@ public:
         int preverrno = errno;
         
         sockrecv_t data;
-#ifdef _WIN32
-        if ((data.length = recvfrom(s, buffer, size, 0, (sockaddr*)&sock, &len)) < 0)
-#else
-        if ((data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104)
-#endif
-        
-        {
+
+        if ((data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
             errno = preverrno;
             
             delete[] buffer;
