@@ -159,7 +159,7 @@ public:
 
     void create_socket(int _af, int _type) { af = _af; type = _type; if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); } 
 
-    void baseServer(std::string ipaddr, int port, bool reuseaddr = false, int listen = 0) {
+    void baseServer(std::string ipaddr, int port, int listen = 0, bool reuseaddr = false) {
         create_socket();
         if (reuseaddr) ssetsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
         sbind(ipaddr, port);
