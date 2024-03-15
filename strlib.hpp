@@ -215,7 +215,7 @@ std::string wstr2str(const std::wstring& wide_string)
 }
 #endif
 
-#if __cplusplus >= 202002L || (_WIN32 && __cplusplus >= 199711L)
+#if __cplusplus >= 202002L || defined(ENABLE_U8STRING)
 std::string u8tostr(std::u8string str) {
     return (char*)str.c_str();
 }

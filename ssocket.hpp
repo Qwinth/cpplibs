@@ -1,4 +1,4 @@
-// version 1.9.4-c4
+// version 1.9.5-c1
 #pragma once
 #include <iostream>
 #include <string>
@@ -85,8 +85,8 @@ struct sockconf_t {
 };
 
 class SSocket {
-    int af = AF_INET;
-    int type = SOCK_STREAM;
+    int sock_af = AF_INET;
+    int sock_type = SOCK_STREAM;
     sockaddress_t address;
 
     bool blocking = true;
@@ -105,8 +105,8 @@ class SSocket {
             tmpaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
         }
         
-        else tmpaddr.sin_addr.s_addr = INADDR_ANY;
-        tmpaddr.sin_family = af;
+        else tmpaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        tmpaddr.sin_family = sock_af;
         tmpaddr.sin_port = htons(port);
 
         return tmpaddr;
@@ -124,18 +124,16 @@ public:
 #endif
     SSocket() {}
     SSocket(int _af, int _type) {
-        af = _af;
-        type = _type;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        create_socket();
+        create_socket(_af, _type);
     }
 
     SSocket(sockconf_t conf) {
         s = conf.s;
-        af = conf.af;
-        type = conf.type;
+        sock_af = conf.af;
+        sock_type = conf.type;
         address = conf.addr;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -155,18 +153,20 @@ public:
 
     bool is_blocking() { return blocking; }
 
-    void create_socket() { if ((s = socket(af, type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); }
-
-    void create_socket(int _af, int _type) { af = _af; type = _type; if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO(); } 
+    void create_socket(int _af, int _type) {
+        sock_af = _af;
+        sock_type = _type;
+        if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+    } 
 
     void baseServer(std::string ipaddr, int port, int listen = 0, bool reuseaddr = false) {
-        create_socket();
         if (reuseaddr) ssetsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
         sbind(ipaddr, port);
         slisten(listen);
     }
 
     void sconnect(std::string ipaddr, int port) {
+        if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
@@ -239,7 +239,7 @@ public:
 
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { sockconf_t({new_socket, this->type, this->af, sockaddr_in_to_sockaddress_t(client)}), sockaddr_in_to_sockaddress_t(client) };
+        return { sockconf_t({new_socket, this->sock_type, this->sock_af, sockaddr_in_to_sockaddress_t(client)}), sockaddr_in_to_sockaddress_t(client) };
     }
 
      size_t ssend(const void* data, size_t length) {
@@ -297,6 +297,7 @@ public:
     }
 
     size_t ssendto(char* buf, size_t size, std::string ipaddr, int port) {
+        if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         return sendto(s, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
@@ -328,7 +329,12 @@ public:
         int preverrno = errno;
 
         sockrecv_t data;
-        if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) { errno = preverrno; return {}; }
+        if ((data.length = recv(s, buffer, size, 0)) < 0 || errno == 104) {
+            errno = preverrno;
+
+            delete[] buffer;
+            return {};
+        }
         data.buffer = new char[data.length];
 
         std::memcpy(data.buffer, buffer, data.length);
@@ -360,14 +366,26 @@ public:
             std::cout << "Warning: srecv max value 65536" << std::endl;
             size = 65536;
         }
-#endif
+#endif  
         char* buffer = new char[size];
         std::memset(buffer, 0, size);
 
         int preverrno = errno;
         
         sockrecv_t data;
-        if ((data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) { errno = preverrno; return {}; }
+#ifdef _WIN32
+        if ((data.length = recvfrom(s, buffer, size, 0, (sockaddr*)&sock, &len)) < 0)
+#else
+        if ((data.length = recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104)
+#endif
+        
+        {
+            errno = preverrno;
+            
+            delete[] buffer;
+            return {};
+        }
+
         data.buffer = new char[data.length];
 
         std::memcpy(data.buffer, buffer, data.length);
@@ -392,7 +410,7 @@ public:
 
 bool operator==(sockaddress_t arg1, sockaddress_t arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
 bool operator==(sockrecv_t arg1, sockrecv_t arg2) { return arg1.addr == arg2.addr && arg1.string == arg2.string && arg1.length == arg2.length; }
-bool operator==(SSocket arg1, SSocket arg2) { return arg1.af == arg2.af && arg1.s == arg2.s; }
+bool operator==(SSocket arg1, SSocket arg2) { return arg1.sock_af == arg2.sock_af && arg1.s == arg2.s; }
 
 bool operator!=(sockaddress_t arg1, sockaddress_t arg2) { return !(arg1 == arg2); }
 bool operator!=(sockrecv_t arg1, sockrecv_t arg2) { return !(arg1 == arg2); }
