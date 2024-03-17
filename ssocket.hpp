@@ -336,6 +336,7 @@ public:
             delete[] buffer;
             return {};
         }
+        
         data.buffer = new char[data.length];
 
         std::memcpy(data.buffer, buffer, data.length);
