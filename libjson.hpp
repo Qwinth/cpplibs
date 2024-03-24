@@ -1,4 +1,4 @@
-// version 1.5.1
+// version 1.5.1-c1
 #pragma once
 #include <iostream>
 #include <string>
@@ -10,10 +10,6 @@
 #include <fstream>
 #include "anytype.hpp"
 #include "strlib.hpp"
-
-#ifdef _WIN32
-typedef long long ssize_t;
-#endif
 
 enum JsonTypes {
     JSONNONE,
