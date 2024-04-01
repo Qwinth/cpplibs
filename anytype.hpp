@@ -1,4 +1,4 @@
-// version 1.1
+// version 1.1-c1
 #pragma once
 #include <iostream>
 #include <iomanip>
@@ -74,7 +74,6 @@ struct AnyType {
     }
 
     bool operator!=(const AnyType& arg) { return !(*this == arg); }
-    bool operator<(const AnyType& arg) { return (*this == arg); }
 
     AnyType* clonePtr() {
         AnyType* obj = new AnyType();
