@@ -1,7 +1,6 @@
-// version 1.0
+// version 1.0-c1
 #include <string>
 #include <cstdint>
-#include "strlib.hpp"
 
 class Base64 {
     std::string enctable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
