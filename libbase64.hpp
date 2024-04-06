@@ -1,5 +1,6 @@
-// version 1.0-c1
+// version 1.0-c2
 #include <string>
+#include <cstring>
 #include <cstdint>
 
 class Base64 {
