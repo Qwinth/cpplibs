@@ -2,6 +2,7 @@
 #include <string>
 #include <cstring>
 #include <cstdint>
+#pragma once
 
 class Base64 {
     std::string enctable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";

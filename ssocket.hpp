@@ -1,5 +1,4 @@
 // version 1.9.5-c2
-#pragma once
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -9,7 +8,7 @@
 #include <cstring>
 #include <cstdint>
 #include "strlib.hpp"
-
+#pragma once
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS

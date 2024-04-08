@@ -1,5 +1,4 @@
 // version 1.5.1-c1
-#pragma once
 #include <iostream>
 #include <string>
 #include <algorithm>
@@ -10,6 +9,7 @@
 #include <fstream>
 #include "anytype.hpp"
 #include "strlib.hpp"
+#pragma once
 
 enum JsonTypes {
     JSONNONE,

@@ -1,6 +1,7 @@
 // version 1.0
-#pragma once
+#include <algorithm>
 #include <cstring>
+#pragma once
 
 class CircularBuffer {
     size_t readIndex = 0;

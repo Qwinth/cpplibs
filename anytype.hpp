@@ -1,10 +1,10 @@
 // version 1.1-c1
-#pragma once
 #include <iostream>
 #include <iomanip>
 #include <string>
 #include <vector>
 #include <map>
+#pragma once
 
 enum Types {
     ANYNONE,

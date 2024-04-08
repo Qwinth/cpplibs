@@ -7,6 +7,7 @@
 #include <sstream>
 #include "anytype.hpp"
 #include "strlib.hpp"
+#pragma once
 
 struct arg_config {
     std::string flag1;

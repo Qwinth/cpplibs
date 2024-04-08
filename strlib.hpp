@@ -1,5 +1,4 @@
 // version 1.8.2-c1
-#pragma once
 #include <string>
 #include <vector>
 #include <map>
@@ -16,6 +15,7 @@
 #ifndef _WIN32
 #include <codecvt>
 #endif
+#pragma once
 
 std::string operator*(std::string str, size_t num) {
     std::string newstr;
