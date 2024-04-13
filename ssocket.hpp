@@ -84,6 +84,11 @@ struct pollsock_t {
     short revents = 0;
 };
 
+struct pollevents_t {
+    std::vector<pollsock_t> events;
+    int act;
+};
+
 class SSocket {
     int sock_af = AF_INET;
     int sock_type = SOCK_STREAM;
@@ -414,7 +419,7 @@ public:
         return data;
     }
 
-    std::pair<std::vector<pollsock_t>, int> spoll(int timeout = -1) {
+    pollevents_t spoll(int timeout = -1) {
         int act = poll(pollfds.data(), pollfds.size(), timeout);
         if (act < 0) throw GETSOCKETERRNO();
 
