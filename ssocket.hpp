@@ -1,4 +1,4 @@
-// version 1.9.6
+// version 1.9.6-c2
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -417,6 +417,10 @@ public:
 
         delete[] buffer;
         return data;
+    }
+
+    sockaddress_t remoteAddress() {
+        return address;
     }
 
     pollevents_t spoll(int timeout = -1) {
