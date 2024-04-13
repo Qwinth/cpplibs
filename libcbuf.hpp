@@ -1,4 +1,4 @@
-// version 1.0
+// version 1.1
 #include <algorithm>
 #include <cstring>
 #pragma once
@@ -38,7 +38,7 @@ public:
         size_t readsize = std::min(size, bufferSizeUsed);
         size_t retsize = readsize;
 
-        if (readIndex + readsize >= bufferSize) {
+        if (readIndex + readsize > bufferSize) {
             memcpy(&dest[destIndex], &buffer[readIndex], bufferSize - readIndex);
 
             destIndex += bufferSize - readIndex;
@@ -82,6 +82,26 @@ public:
         return retsize;
     }
 
+    char get() {
+        if (!bufferSizeUsed) return 0;
+
+        char ret = buffer[readIndex++];
+        bufferSizeUsed--;
+
+        if (readIndex == bufferSize) readIndex = 0;
+
+        return ret;
+    }
+
+    void put() {
+        if (bufferSizeUsed == bufferSize) return;
+
+        char ret = buffer[writeIndex++];
+        bufferSizeUsed++;
+
+        if (writeIndex == bufferSize) writeIndex = 0;
+    }
+
     size_t usage() {
         return bufferSizeUsed;
     }
@@ -102,5 +122,9 @@ public:
 
     bool empty() {
         return !bufferSizeUsed;
+    }
+
+    char* data() {
+        return buffer;
     }
 };
