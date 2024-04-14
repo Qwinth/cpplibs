@@ -30,7 +30,6 @@ typedef int socklen_t;
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
-#include <poll.h>
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
