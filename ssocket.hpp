@@ -1,4 +1,4 @@
-// version 1.9.6-c2
+// version 1.9.5-c6
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -35,10 +35,6 @@ typedef int socklen_t;
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
 #endif
-
-class SSocket;
-
-std::map<int, SSocket*> sockets;
 
 struct sockaddress_t {
     std::string ip;
@@ -79,23 +75,10 @@ struct sockrecv_t {
     }
 };
 
-struct pollsock_t {
-    SSocket* sock;
-    short revents = 0;
-};
-
-struct pollevents_t {
-    std::vector<pollsock_t> events;
-    int act;
-};
-
 class SSocket {
     int sock_af = AF_INET;
     int sock_type = SOCK_STREAM;
-    bool child_socket = false;
     sockaddress_t address;
-
-    std::vector<pollfd> pollfds;
 
     bool blocking = true;
 
@@ -121,19 +104,6 @@ class SSocket {
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)}; }
-
-    std::vector<pollsock_t> pollfd_to_pollsock_t(std::vector<pollfd>& fds) {
-        std::vector<pollsock_t> ret;
-
-        for (pollfd i : fds) {
-            ret.push_back({sockets[i.fd], i.revents});
-            i.revents = 0;
-        }
-
-        return ret;
-    }
-
-    friend bool operator==(SSocket arg1, SSocket arg2);
 public:
 #ifdef _WIN32
     WSADATA wsa;
@@ -149,12 +119,11 @@ public:
         create_socket(_af, _type);
     }
 
-    SSocket(int fd, int _af, int _type, sockaddress_t addr, bool child_sock = true) {
+    SSocket(int fd, int _af, int _type, sockaddress_t addr) {
         s = fd;
         sock_af = _af;
         sock_type = _type;
         address = addr;
-        child_socket = child_sock;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
@@ -177,10 +146,6 @@ public:
         sock_af = _af;
         sock_type = _type;
         if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
-
-        sockets[s] = this;
-
-        pollfds.push_back({s, POLLIN | POLLERR, 0});
     } 
 
     void baseServer(std::string ipaddr, int port, int listen = 0, bool reuseaddr = false) {
@@ -211,7 +176,6 @@ public:
         addr.s_addr = *(uint64_t*)remoteHost->h_addr_list[0];
         return std::string(inet_ntoa(addr));
     }
-
 
     sockaddress_t sgetsockname() {
         sockaddr_in my_addr;
@@ -263,10 +227,7 @@ public:
 
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        SSocket* newsock = new SSocket(new_socket, this->sock_type, this->sock_af, sockaddr_in_to_sockaddress_t(client));
-        sockets[new_socket] = newsock;
-
-        return { *newsock, sockaddr_in_to_sockaddress_t(client) };
+        return { SSocket(new_socket, this->sock_type, this->sock_af, sockaddr_in_to_sockaddress_t(client)), sockaddr_in_to_sockaddress_t(client) };
     }
 
      size_t ssend(const void* data, size_t length) {
@@ -376,8 +337,7 @@ public:
     char srecvbyte() {
         sockrecv_t recvbyte = srecv(1);
 
-        if (!recvbyte.length) return 0;
-        return recvbyte.buffer[0];
+        return (recvbyte.length) ? recvbyte.buffer[0] : 0;
     }
 
     sockrecv_t srecvfrom(size_t size) {
@@ -423,24 +383,7 @@ public:
         return address;
     }
 
-    pollevents_t spoll(int timeout = -1) {
-        int act = poll(pollfds.data(), pollfds.size(), timeout);
-        if (act < 0) throw GETSOCKETERRNO();
-
-        return {pollfd_to_pollsock_t(pollfds), act};
-    }
-
-    void pollAddSocket(SSocket sock, short poll_events) {
-        pollfds.push_back({sock.s, poll_events, 0});
-    }
-
-    void pollRemoveSocket(pollsock_t sock) {
-        for (int i = 0; i < pollfds.size(); i++) if (pollfds[i].fd == sock.sock->s) pollfds.erase(pollfds.begin() + i);
-        sock.sock->sclose();
-    }
-
     void sclose() {
-        sockets.erase(s);
 #ifdef _WIN32
         shutdown(s, SD_BOTH);
         closesocket(s);
@@ -448,15 +391,13 @@ public:
 #elif __linux__
         shutdown(s, SHUT_RDWR);
         close(s);
-
-        if (child_socket) delete this;
 #endif
     }
 };
 
 bool operator==(sockaddress_t arg1, sockaddress_t arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
 bool operator==(sockrecv_t arg1, sockrecv_t arg2) { return arg1.addr == arg2.addr && arg1.string == arg2.string && arg1.length == arg2.length; }
-bool operator==(SSocket arg1, SSocket arg2) { return arg1.sock_af == arg2.sock_af && arg1.s == arg2.s; }
+bool operator==(SSocket arg1, SSocket arg2) { return arg1.s == arg2.s; }
 
 bool operator!=(sockaddress_t arg1, sockaddress_t arg2) { return !(arg1 == arg2); }
 bool operator!=(sockrecv_t arg1, sockrecv_t arg2) { return !(arg1 == arg2); }
