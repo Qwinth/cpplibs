@@ -1,4 +1,4 @@
-// version 1.9.5-c6
+// version 1.9.5-c7
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -81,6 +81,13 @@ class SSocket {
 
     bool blocking = true;
 
+#ifdef _WIN32
+    WSADATA wsa;
+    SOCKET s;
+#else
+    int s;
+#endif
+
     bool checkIp(std::string ipaddr) {
         for (auto &i : split(ipaddr, '.')) if (!std::all_of(i.begin(), i.end(), ::isdigit)) return false;
         return true;
@@ -103,13 +110,8 @@ class SSocket {
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)}; }
+        friend bool operator==(SSocket arg1, SSocket arg2);
 public:
-#ifdef _WIN32
-    WSADATA wsa;
-    SOCKET s;
-#elif __linux__
-    int s;
-#endif
     SSocket() {}
     SSocket(int _af, int _type) {
 #ifdef _WIN32
@@ -380,6 +382,10 @@ public:
 
     sockaddress_t remoteAddress() {
         return address;
+    }
+    
+    int fd() {
+        return s;
     }
 
     void sclose() {
