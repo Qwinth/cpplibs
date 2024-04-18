@@ -118,7 +118,7 @@ public:
         char tmp1[4] = {0};
         char tmp2[3] = {0};
 
-        for (size_t i = 0; i < size; i += 4) {
+        for (ssize_t i = 0; i < size; i += 4) {
             std::string tmp;
 
             memcpy(tmp1, &buffer[i], (size - (i + 4) >= 0) ? 4 : size - i);
