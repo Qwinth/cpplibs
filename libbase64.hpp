@@ -110,7 +110,7 @@ public:
         return retsize;
     }
 
-    size_t decode(const char* buffer, char* dest, size_t size) {
+    size_t decode(const char* buffer, char* dest, ssize_t size) {
         size_t retsize = calculateDecodedSize(buffer);
         char* ret = new char[retsize];
         size_t retptr = 0;
