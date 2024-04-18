@@ -146,7 +146,7 @@ public:
     void open(int _af, int _type) {
         sock_af = _af;
         sock_type = _type;
-        if ((s = socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if ((s = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
     } 
 
     void baseServer(std::string ipaddr, int port, int _listen = 0, bool reuseaddr = false) {
