@@ -156,6 +156,22 @@ public:
     void addPair(std::string key, JsonNode value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void addPair(std::string key, AnyType value) { objects[key] = AnyType_to_JsonNode(value); if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void arrayAppend(JsonNode value) { array.push_back(value); type = JSONARRAY; }
+
+    void clear() {
+        type = JSONNONE;
+        str.clear();
+        integer = 0;
+        lfloat = 0;
+        boolean = false;
+
+        for (auto i : array) i.clear();
+        array.clear();
+
+        objectsOrder.clear();
+
+        for (auto i : objects) i.second.clear();
+        objects.clear();
+    }
 };
 
 class Json {
