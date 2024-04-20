@@ -7,7 +7,6 @@
 #include <utility>
 #include <sstream>
 #include <fstream>
-#include "anytype.hpp"
 #include "strlib.hpp"
 #pragma once
 
@@ -44,42 +43,6 @@ public:
         return 0;
     }
 
-private:
-    JsonNode AnyType_to_JsonNode(AnyType value) {
-        JsonNode node;
-        node.type = (JsonTypes)value.type;
-
-        switch (value.type) {
-        case ANYSTRING: {
-            node.str = value.str;
-            break;
-        }
-
-        case ANYINTEGER: {
-            node.integer = value.integer;
-            break;
-        }
-
-        case ANYFLOAT: {
-            node.lfloat = value.lfloat;
-            break;
-        }
-
-        case ANYBOOLEAN: {
-            node.boolean = value.boolean;
-            break;
-        }
-
-        case ANYLIST: {
-            for (AnyType* i : value.list) node.array.push_back(JsonNode(AnyType_to_JsonNode(*i)));
-            break;
-        }
-        }
-
-        return node;
-    }
-
-public:
     JsonNode() {}
     JsonNode(std::string value) {
         type = JSONSTRING;
@@ -154,7 +117,6 @@ public:
     void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void addPair(std::string key, JsonNode value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, AnyType value) { objects[key] = AnyType_to_JsonNode(value); if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void arrayAppend(JsonNode value) { array.push_back(value); type = JSONARRAY; }
 
     void clear() {
@@ -205,7 +167,7 @@ class Json {
         bool quotes = false;
         int br = 0;
 
-        for (i = pos; i < str.size(); i++) {
+        for (i = pos; i < (long)str.size(); i++) {
             char j = str[i];
 
             if (j == '"' && (i - 1 < 0 || str[i - 1] != '\\')) quotes = !quotes;

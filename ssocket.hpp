@@ -109,7 +109,7 @@ class Socket {
         return tmpaddr;
     }
 
-    sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)}; }
+    sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
         friend bool operator==(Socket arg1, Socket arg2);
 public:
     Socket() {}
@@ -276,10 +276,10 @@ public:
         size_t size = 0;
 
         while (file.tellg() != -1) {
+            std::memset(buffer, 0, 65536);
+
             file.read(buffer, 65536);
             size += send(buffer, file.gcount());
-
-            std::memset(buffer, 0, sizeof(buffer));
         }
 
         delete[] buffer;
