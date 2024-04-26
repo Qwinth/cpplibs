@@ -1,4 +1,5 @@
-// version 1.9.6-c4
+// version 1.9.6-c5
+#pragma once
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -8,17 +9,24 @@
 #include <utility>
 #include <cstring>
 #include <cstdint>
+
 #include "strlib.hpp"
-#pragma once
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include "windowsHeader.hpp"
+
+#ifndef _WINSOCKAPI_
 #include <winsock2.h>
+#endif
+
 #pragma comment(lib, "ws2_32.lib")
+
 #define GETSOCKETERRNO() (WSAGetLastError())
+#define poll(a, b, c) (WSAPoll(a, b, c))
 #define MSG_CONFIRM 0
 #define MSG_WAITALL 0
+
 
 typedef long ssize_t;
 typedef int socklen_t;
@@ -30,9 +38,12 @@ typedef int socklen_t;
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <poll.h>
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
+
+typedef int SOCKET;
 #endif
 
 struct sockaddress_t {
@@ -113,12 +124,7 @@ class Socket {
         friend bool operator==(Socket arg1, Socket arg2);
 public:
     Socket() {}
-    Socket(int _af, int _type) {
-#ifdef _WIN32
-        WSAStartup(MAKEWORD(2, 2), &wsa);
-#endif
-        open(_af, _type);
-    }
+    Socket(int _af, int _type) {  open(_af, _type); }
 
     Socket(int fd, int _af, int _type, sockaddress_t addr) {
         s = fd;
@@ -144,6 +150,9 @@ public:
     bool is_blocking() { return blocking; }
 
     void open(int _af, int _type) {
+#ifdef _WIN32
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
         sock_af = _af;
         sock_type = _type;
         if ((s = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
@@ -379,9 +388,9 @@ public:
 
     void close() {
 #ifdef _WIN32
-        shutdown(s, SD_BOTH);
-        closesocket(s);
-        WSACleanup();
+        ::shutdown(s, SD_BOTH);
+        ::closesocket(s);
+        ::WSACleanup();
 #elif __linux__
         ::shutdown(s, SHUT_RDWR);
         ::close(s);
