@@ -1,5 +1,4 @@
 // version 1.9.6-c5
-#pragma once
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -9,6 +8,7 @@
 #include <utility>
 #include <cstring>
 #include <cstdint>
+#pragma once
 
 #include "strlib.hpp"
 
