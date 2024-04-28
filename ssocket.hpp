@@ -43,7 +43,6 @@ typedef int socklen_t;
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
 
-typedef int SOCKET;
 #endif
 
 struct sockaddress_t {
@@ -381,10 +380,16 @@ public:
     sockaddress_t remoteAddress() {
         return address;
     }
-    
+
+#ifdef _WIN32
+    SOCKET fd() {
+        return s;
+    }
+#else
     int fd() {
         return s;
     }
+#endif
 
     void close() {
 #ifdef _WIN32
