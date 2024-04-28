@@ -69,7 +69,7 @@ public:
         integer = value;
     }
 
-    JsonNode( long long value) {
+    JsonNode(long long value) {
         type = JSONINTEGER;
         integer = value;
     }
