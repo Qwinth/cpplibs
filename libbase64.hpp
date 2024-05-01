@@ -1,4 +1,4 @@
-// version 1.1-c4
+// version 1.1-c5
 #include <string>
 #include <cstring>
 #include <cstdint>
@@ -23,13 +23,13 @@ class Base64 {
                     dest[2] = (chr2 >> 6) | ((chr1 & 0xF) << 2);
                     dest[3] = chr2 & 0x3F;
                 }
-                
+
                 else {
                     dest[2] = (chr1 & 0xF) << 2;
                     dest[3] = 0x40;
                 }
             }
-            
+
             else {
                 dest[1] = (chr0 & 0x03) << 4;
                 dest[2] = 0x40;
@@ -38,17 +38,21 @@ class Base64 {
         }
     }
 
-    void dec3bytes(const char* buffer, char* dest) {
+    int dec3bytes(const char* buffer, char* dest) {
         uint8_t chr0 = buffer[0];
         uint8_t chr1 = buffer[1];
         uint8_t chr2 = buffer[2];
         uint8_t chr3 = buffer[3];
 
-        dest[0] = (chr0 << 2) | (chr1 >> 4);
+        int bytes_count = 0;
 
-        if (chr2 != 0x40) dest[1] = (chr1 << 4) | (chr2 >> 2);
+        dest[0] = (chr0 << 2) | (chr1 >> 4); bytes_count++;
 
-        if (chr3 != 0x40) dest[2] = (chr2 << 6) | chr3;
+        if (chr2 != 0x40) { dest[1] = (chr1 << 4) | (chr2 >> 2); bytes_count++; }
+
+        if (chr3 != 0x40) { dest[2] = (chr2 << 6) | chr3; bytes_count++; }
+
+        return bytes_count;
     }
 
 public:
@@ -57,7 +61,7 @@ public:
     }
 
     size_t calculateDecodedSize(std::string str) {
-        return ((str.size() * 3) / 4) - std::count(str.begin(), str.end(), '='); 
+        return ((str.size() * 3) / 4) - std::count(str.begin(), str.end(), '=');
     }
 
     std::string encodeString(std::string buffer) {
@@ -66,7 +70,7 @@ public:
         size_t base64_size = calculateEncodedSize(buffer.size());
         char* destbuff = new char[base64_size];
 
-        encode(buffer.c_str(), destbuff, buffer.size());       
+        encode(buffer.c_str(), destbuff, buffer.size());
 
         ret.append(destbuff, base64_size);
 
@@ -89,30 +93,25 @@ public:
 
     size_t encode(const char* buffer, char* dest, ssize_t size) {
         size_t retsize = calculateEncodedSize(size);
-        char* ret = new char[retsize];
         size_t retptr = 0;
-        
+
         char tmp1[3] = {0};
         char tmp2[4] = {0};
 
         for (ssize_t i = 0; i < size; i += 3) {
             size_t encsize = (size - (i + 3) >= 0) ? 3 : size - i;
-            
+
             memcpy(tmp1, &buffer[i], encsize);
             enc3bytes(tmp1, tmp2, encsize);
 
-            for (int i = 0; i < 4; i++) ret[retptr++] = enctable[tmp2[i]];
+            for (int i = 0; i < 4; i++) dest[retptr++] = enctable[tmp2[i]];
         }
 
-        memcpy(dest, ret, retsize);
-
-        delete[] ret;
         return retsize;
     }
 
     size_t decode(const char* buffer, char* dest, ssize_t size) {
         size_t retsize = calculateDecodedSize(buffer);
-        char* ret = new char[retsize];
         size_t retptr = 0;
 
         char tmp1[4] = {0};
@@ -124,16 +123,13 @@ public:
             memcpy(tmp1, &buffer[i], (size - (i + 4) >= 0) ? 4 : size - i);
 
             for (int i = 0; i < 4; i++) tmp1[i] = enctable.find(tmp1[i]);
-            
-            dec3bytes(tmp1, tmp2);
 
-            memcpy(&ret[retptr], tmp2, 3);
-            retptr += 3;
+            int bsize = dec3bytes(tmp1, tmp2);
+
+            memcpy(&dest[retptr], tmp2, bsize);
+            retptr += bsize;
         }
 
-        memcpy(dest, ret, retsize);
-
-        delete[] ret;
         return retsize;
     }
 };
