@@ -1,10 +1,11 @@
-// version 1.9.7
+// version 1.9.7-c1
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <algorithm>
 #include <vector>
 #include <map>
+#include <mutex>
 #include <utility>
 #include <cstring>
 #include <cstdint>
@@ -90,6 +91,9 @@ class Socket {
     sockaddress_t address;
 
     bool blocking = true;
+
+    std::mutex msgSendMtx;
+    std::mutex msgRecvMtx;
 
 #ifdef _WIN32
     WSADATA wsa;
@@ -280,8 +284,13 @@ public:
     }
 
     size_t sendmsg(const void* data, uint64_t size) {
+        msgSendMtx.lock();
+
         sendall(&size, sizeof(uint64_t));
-        return sendall(data, size);
+        size_t retsize = sendall(data, size);
+
+        msgSendMtx.unlock();
+        return retsize;
     }
 
     size_t sendmsg(std::string data) {
@@ -343,6 +352,8 @@ public:
     }
 
     sockrecv_t recvmsg() {
+        msgRecvMtx.lock();
+
         sockrecv_t recvsize = recv(sizeof(uint64_t));
         if (!recvsize.size) return {};
 
@@ -367,6 +378,7 @@ public:
 
         ret.string = std::string(ret.buffer, ret.size);
 
+        msgRecvMtx.unlock();
         return ret;
     }
 
