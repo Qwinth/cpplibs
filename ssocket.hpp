@@ -1,4 +1,4 @@
-// version 1.9.7-c2
+// version 1.9.7-c3
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -137,11 +137,6 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-    }
-
-    ~Socket() {
-        delete msgSendMtx;
-        delete msgRecvMtx;
     }
 
     void setblocking(bool _blocking) {
@@ -449,6 +444,8 @@ public:
         ::shutdown(s, SHUT_RDWR);
         ::close(s);
 #endif
+        delete msgSendMtx;
+        delete msgRecvMtx;
     }
 };
 
