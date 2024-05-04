@@ -92,8 +92,8 @@ class Socket {
 
     bool blocking = true;
 
-    std::mutex msgSendMtx;
-    std::mutex msgRecvMtx;
+    std::mutex* msgSendMtx = new std::mutex;
+    std::mutex* msgRecvMtx = new std::mutex;
 
 #ifdef _WIN32
     WSADATA wsa;
@@ -137,6 +137,11 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
+    }
+
+    ~Socket() {
+        delete msgSendMtx;
+        delete msgRecvMtx;
     }
 
     void setblocking(bool _blocking) {
@@ -284,12 +289,12 @@ public:
     }
 
     size_t sendmsg(const void* data, uint64_t size) {
-        msgSendMtx.lock();
+        msgSendMtx->lock();
 
         sendall(&size, sizeof(uint64_t));
         size_t retsize = sendall(data, size);
 
-        msgSendMtx.unlock();
+        msgSendMtx->unlock();
         return retsize;
     }
 
@@ -352,7 +357,7 @@ public:
     }
 
     sockrecv_t recvmsg() {
-        msgRecvMtx.lock();
+        msgRecvMtx->lock();
 
         sockrecv_t recvsize = recv(sizeof(uint64_t));
         if (!recvsize.size) return {};
@@ -378,7 +383,7 @@ public:
 
         ret.string = std::string(ret.buffer, ret.size);
 
-        msgRecvMtx.unlock();
+        msgRecvMtx->unlock();
         return ret;
     }
 
