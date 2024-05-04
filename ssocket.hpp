@@ -1,4 +1,4 @@
-// version 1.9.7-c3
+// version 1.9.7-c4
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -355,7 +355,10 @@ public:
         msgRecvMtx->lock();
 
         sockrecv_t recvsize = recv(sizeof(uint64_t));
-        if (!recvsize.size) return {};
+        if (!recvsize.size) {
+            msgRecvMtx->unlock();
+            return {};
+        }
 
         sockrecv_t ret;
         ret.size = *(uint64_t*)recvsize.buffer;
