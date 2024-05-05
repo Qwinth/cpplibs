@@ -1,4 +1,4 @@
-// version 1.9.7-c4
+// version 1.9.7-c5
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -247,7 +247,7 @@ public:
         return { Socket(new_socket, this->sock_type, this->sock_af, sockaddr_in_to_sockaddress_t(client)), sockaddr_in_to_sockaddress_t(client) };
     }
 
-     size_t send(const void* data, size_t size) {
+    int64_t send(const void* data, int64_t size) {
 #ifdef _WIN32
         return ::send(s, (const char*)data, size, 0);
 #elif __linux__
@@ -255,51 +255,51 @@ public:
 #endif
     }
 
-    size_t send(std::string data) {
+    int64_t send(std::string data) {
         return send(data.c_str(), data.size());
     }
 
-    size_t send(char ch) {
+    int64_t send(char ch) {
         char chbuf[1];
         chbuf[0] = ch;
 
         return send(chbuf, 1);
     }
 
-    size_t sendall(const void* chardata, size_t size) {
-        size_t sended = 0;
-        size_t ptr = 0;
+    int64_t sendall(const void* chardata, int64_t size) {
+        int64_t ptr = 0;
 
-        while (sended < size) {
-            size_t retszie = send(&((char*)chardata)[ptr], size - sended);
-            sended += retszie;
+        while (ptr < size) {
+            ssize_t retszie = send(((char*)chardata) + ptr, std::min(65536L, size - ptr));
             ptr += retszie;
         }
 
-        return sended;
+        return ptr;
     }
 
-    size_t sendall(std::string data) {
+    int64_t sendall(std::string data) {
         return sendall(data.c_str(), data.size());
     }
 
-    size_t sendmsg(const void* data, uint64_t size) {
+    int64_t sendmsg(const void* data, uint32_t size) {
         msgSendMtx->lock();
 
-        sendall(&size, sizeof(uint64_t));
-        size_t retsize = sendall(data, size);
+        uint32_t netsize = htonl(size);
+
+        sendall(&netsize, sizeof(uint32_t));
+        int64_t retsize = sendall(data, size);
 
         msgSendMtx->unlock();
         return retsize;
     }
 
-    size_t sendmsg(std::string data) {
+    int64_t sendmsg(std::string data) {
         return sendmsg(data.c_str(), data.size());
     }
 
-    size_t send_file(std::ifstream& file) {
+    int64_t send_file(std::ifstream& file) {
         char* buffer = new char[65536];
-        size_t size = 0;
+        int64_t size = 0;
 
         while (file.tellg() != -1) {
             std::memset(buffer, 0, 65536);
@@ -312,29 +312,29 @@ public:
         return size;
     }
 
-    size_t sendto(char* buf, size_t size, std::string ipaddr, int port) {
+    int64_t sendto(char* buf, int64_t size, std::string ipaddr, int port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         return ::sendto(s, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
     }
 
-    size_t sendto(char* buf, size_t size, sockaddress_t addr) { return sendto(buf, size, addr.ip, addr.port); }
+    int64_t sendto(char* buf, int64_t size, sockaddress_t addr) { return sendto(buf, size, addr.ip, addr.port); }
 
-    size_t sendto(std::string buf, std::string ipaddr, int port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
+    int64_t sendto(std::string buf, std::string ipaddr, int port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
 
-    size_t sendto(std::string buf, sockaddress_t addr) { return sendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
+    int64_t sendto(std::string buf, sockaddress_t addr) { return sendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
 
-    size_t sendto(sockrecv_t data) { return sendto((char*)data.buffer, data.size, data.addr.ip, data.addr.port); }
+    int64_t sendto(sockrecv_t data) { return sendto((char*)data.buffer, data.size, data.addr.ip, data.addr.port); }
 
-    sockrecv_t recv(size_t size) {
+    sockrecv_t recv(ssize_t size) {
         char* buffer = new char[size];
         std::memset(buffer, 0, size);
 
         int preverrno = errno;
 
         sockrecv_t data;
-        if ((data.size = ::recv(s, buffer, size, 0)) < 0 || errno == 104) {
+        if ((data.size = ::recv(s, buffer, size, 0)) < 0) {
             errno = preverrno;
 
             delete[] buffer;
@@ -342,46 +342,53 @@ public:
         }
 
         data.buffer = new char[data.size];
-
         std::memcpy(data.buffer, buffer, data.size);
-        data.string.assign(buffer, data.size);
+
+        data.string.assign(data.buffer, data.size);
         data.addr = address;
 
         delete[] buffer;
         return data;
     }
 
+    sockrecv_t recvall(ssize_t size) {
+        sockrecv_t ret;
+        ret.buffer = new char[size];
+
+        std::memset(ret.buffer, 0, size);
+
+        int64_t bufptr = 0;
+
+        while (bufptr < size) {
+            sockrecv_t part = recv(std::min(65536L, size - bufptr));
+
+            std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
+            bufptr += part.size;
+        }
+
+        ret.addr = address;
+        ret.size = bufptr;
+        ret.string = std::string(ret.buffer, bufptr);
+
+        return ret;
+    }
+
     sockrecv_t recvmsg() {
         msgRecvMtx->lock();
 
-        sockrecv_t recvsize = recv(sizeof(uint64_t));
+        sockrecv_t recvsize = recv(sizeof(uint32_t));
+
         if (!recvsize.size) {
             msgRecvMtx->unlock();
             return {};
         }
 
-        sockrecv_t ret;
-        ret.size = *(uint64_t*)recvsize.buffer;
-        ret.buffer = new char[ret.size];
+        std::cout << ntohl(*(uint32_t*)recvsize.buffer) << std::endl;
 
-        memset(ret.buffer, 0, ret.size);
-
-        uint64_t received = 0;
-        uint64_t bufptr = 0;
-
-        while (received < (uint64_t)ret.size) {
-            sockrecv_t part = recv(ret.size - received);
-
-            memcpy(&ret.buffer[bufptr], part.buffer, part.size);
-            bufptr += part.size;
-            received += part.size;
-
-            ret.addr = part.addr;
-        }
-
-        ret.string = std::string(ret.buffer, ret.size);
+        sockrecv_t ret = recvall(ntohl(*(uint32_t*)recvsize.buffer));
 
         msgRecvMtx->unlock();
+
         return ret;
     }
 
@@ -391,7 +398,7 @@ public:
         return (recvbyte.size) ? recvbyte.buffer[0] : 0;
     }
 
-    sockrecv_t recvfrom(size_t size) {
+    sockrecv_t recvfrom(ssize_t size) {
         sockaddr_in sock;
         socklen_t len = sizeof(sockaddr_in);
 
