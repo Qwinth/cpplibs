@@ -389,8 +389,6 @@ public:
             return {};
         }
 
-        std::cout << ntohl(*(uint32_t*)recvsize.buffer) << std::endl;
-
         sockrecv_t ret = recvall(ntohl(*(uint32_t*)recvsize.buffer));
 
         msgRecvMtx->unlock();
