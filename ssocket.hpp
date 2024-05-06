@@ -28,6 +28,8 @@
 #define MSG_CONFIRM 0
 #define MSG_WAITALL 0
 
+#undef min
+
 
 typedef long ssize_t;
 typedef int socklen_t;
@@ -276,7 +278,7 @@ public:
         int64_t ptr = 0;
 
         while (ptr < size) {
-            ssize_t retszie = send(((char*)chardata) + ptr, std::min(65536L, size - ptr));
+            ssize_t retszie = send(((char*)chardata) + ptr, std::min(65536L, (long)(size - ptr)));
             ptr += retszie;
         }
 
@@ -366,7 +368,7 @@ public:
         int64_t bufptr = 0;
 
         while (bufptr < size) {
-            sockrecv_t part = recv(std::min(65536L, size - bufptr));
+            sockrecv_t part = recv(std::min(65536L, (long)(size - bufptr)));
 
             std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
             bufptr += part.size;
