@@ -1,4 +1,4 @@
-// version 1.9.7-c5
+// version 1.9.7-c6
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -35,6 +35,8 @@ typedef int socklen_t;
 #elif __linux__
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -236,6 +238,10 @@ public:
         setsockopt(SOL_SOCKET, SO_REUSEADDR, i);
     }
 
+    void settcpnodelay(int i) {
+        setsockopt(IPPROTO_TCP, TCP_NODELAY, &i, sizeof(int));
+    }
+
     std::pair<Socket, sockaddress_t> accept() {
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
@@ -251,7 +257,7 @@ public:
 #ifdef _WIN32
         return ::send(s, (const char*)data, size, 0);
 #elif __linux__
-        return ::send(s, data, size, MSG_NOSIGNAL);
+        return ::send(s, data, size, 0);
 #endif
     }
 
