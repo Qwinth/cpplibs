@@ -31,7 +31,7 @@
 #undef min
 
 
-typedef long ssize_t;
+typedef long int64_t;
 typedef int socklen_t;
 
 #elif __linux__
@@ -60,7 +60,7 @@ struct sockaddress_t {
 struct sockrecv_t {
     std::string string;
     char* buffer = nullptr;
-    ssize_t size = 0;
+    int64_t size = 0;
     sockaddress_t addr;
 
     ~sockrecv_t() { delete[] buffer; }
@@ -278,7 +278,7 @@ public:
         int64_t ptr = 0;
 
         while (ptr < size) {
-            ssize_t retszie = send(((char*)chardata) + ptr, std::min(65536L, (long)(size - ptr)));
+            int64_t retszie = send(((char*)chardata) + ptr, std::min(65536L, (long)(size - ptr)));
             ptr += retszie;
         }
 
@@ -335,7 +335,7 @@ public:
 
     int64_t sendto(sockrecv_t data) { return sendto((char*)data.buffer, data.size, data.addr.ip, data.addr.port); }
 
-    sockrecv_t recv(ssize_t size) {
+    sockrecv_t recv(int64_t size) {
         char* buffer = new char[size];
         std::memset(buffer, 0, size);
 
@@ -359,7 +359,7 @@ public:
         return data;
     }
 
-    sockrecv_t recvall(ssize_t size) {
+    sockrecv_t recvall(int64_t size) {
         sockrecv_t ret;
         ret.buffer = new char[size];
 
@@ -404,7 +404,7 @@ public:
         return (recvbyte.size) ? recvbyte.buffer[0] : 0;
     }
 
-    sockrecv_t recvfrom(ssize_t size) {
+    sockrecv_t recvfrom(int64_t size) {
         sockaddr_in sock;
         socklen_t len = sizeof(sockaddr_in);
 
