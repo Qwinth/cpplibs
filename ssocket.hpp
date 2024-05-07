@@ -277,11 +277,8 @@ public:
     int64_t sendall(const void* chardata, int64_t size) {
         int64_t ptr = 0;
 
-        while (ptr < size) {
-            int64_t retszie = send(((char*)chardata) + ptr, std::min(65536L, (long)(size - ptr)));
-            ptr += retszie;
-        }
-
+        while (ptr < size) ptr += send(((char*)chardata) + ptr, std::min(65536L, (long)(size - ptr)));
+        
         return ptr;
     }
 
