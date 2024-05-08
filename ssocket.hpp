@@ -1,4 +1,4 @@
-// version 1.9.7-c6
+// version 1.9.7-c6.1
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -27,9 +27,6 @@
 #define poll(a, b, c) (WSAPoll(a, b, c))
 #define MSG_CONFIRM 0
 #define MSG_WAITALL 0
-
-#undef min
-
 
 typedef long int64_t;
 typedef int socklen_t;
@@ -277,7 +274,7 @@ public:
     int64_t sendall(const void* chardata, int64_t size) {
         int64_t ptr = 0;
 
-        while (ptr < size) ptr += send(((char*)chardata) + ptr, std::min(65536L, (long)(size - ptr)));
+        while (ptr < size) ptr += send(((char*)chardata) + ptr, size - ptr);
         
         return ptr;
     }
@@ -365,7 +362,7 @@ public:
         int64_t bufptr = 0;
 
         while (bufptr < size) {
-            sockrecv_t part = recv(std::min(65536L, (long)(size - bufptr)));
+            sockrecv_t part = recv(size - bufptr);
 
             std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
             bufptr += part.size;
