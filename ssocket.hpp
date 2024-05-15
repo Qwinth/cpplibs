@@ -1,4 +1,4 @@
-// version 1.9.7-c6.1
+// version 1.9.7-c7
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -93,8 +93,8 @@ class Socket {
 
     bool blocking = true;
 
-    std::mutex* msgSendMtx = new std::mutex;
-    std::mutex* msgRecvMtx = new std::mutex;
+    std::mutex* msgSendMtx = nullptr;
+    std::mutex* msgRecvMtx = nullptr;
 
 #ifdef _WIN32
     WSADATA wsa;
@@ -124,6 +124,11 @@ class Socket {
         return tmpaddr;
     }
 
+    void mutexInit() {
+        msgSendMtx = new std::mutex;
+        msgRecvMtx = new std::mutex;
+    }
+
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
         friend bool operator==(Socket arg1, Socket arg2);
 public:
@@ -138,6 +143,7 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
+        mutexInit();
     }
 
     void setblocking(bool _blocking) {
@@ -160,6 +166,8 @@ public:
         sock_af = _af;
         sock_type = _type;
         if ((s = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+
+        mutexInit();
     }
 
     void baseServer(std::string ipaddr, int port, int _listen = 0, bool reuseaddr = false) {
