@@ -1,5 +1,6 @@
-// version 1.0
+// version 1.1
 #include <thread>
+#include <string>
 #include <cstdlib>
 #include <csignal>
 #include <unistd.h>
