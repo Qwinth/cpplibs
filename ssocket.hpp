@@ -1,4 +1,4 @@
-// version 1.9.7-c7
+// version 1.9.7-c8
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -93,8 +93,8 @@ class Socket {
 
     bool blocking = true;
 
-    std::mutex* msgSendMtx = nullptr;
-    std::mutex* msgRecvMtx = nullptr;
+    std::shared_ptr<std::mutex> msgSendMtx = nullptr;
+    std::shared_ptr<std::mutex> msgRecvMtx = nullptr;
 
 #ifdef _WIN32
     WSADATA wsa;
@@ -125,8 +125,8 @@ class Socket {
     }
 
     void mutexInit() {
-        msgSendMtx = new std::mutex;
-        msgRecvMtx = new std::mutex;
+        msgSendMtx = std::make_shared<std::mutex>();
+        msgRecvMtx = std::make_shared<std::mutex>();
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
@@ -462,8 +462,6 @@ public:
         ::shutdown(s, SHUT_RDWR);
         ::close(s);
 #endif
-        delete msgSendMtx;
-        delete msgRecvMtx;
     }
 };
 
