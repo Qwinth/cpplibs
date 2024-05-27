@@ -111,6 +111,8 @@ public:
     }
 
     void clear() {
+        memset(buffer, 0, bufferSize);
+
         readIndex = 0;
         writeIndex = 0;
         bufferSizeUsed = 0;

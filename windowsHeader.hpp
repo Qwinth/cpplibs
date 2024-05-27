@@ -3,6 +3,6 @@
 #define WIN32_LEAN_AND_MEAN
 
 #ifndef _WINDOWS_
-#include <Windows.h>
+#include <windows.h>
 #endif
 #endif
