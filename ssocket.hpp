@@ -1,4 +1,4 @@
-// version 1.9.7-c8
+// version 1.9.7-c8.1
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -264,7 +264,7 @@ public:
 #ifdef _WIN32
         return ::send(s, (const char*)data, size, 0);
 #elif __linux__
-        return ::send(s, data, size, 0);
+        return ::send(s, data, size, MSG_NOSIGNAL);
 #endif
     }
 
