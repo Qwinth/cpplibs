@@ -1,4 +1,4 @@
-// version 1.9.8-c1
+// version 1.9.8-c2
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -49,8 +49,6 @@ typedef int socklen_t;
 
 #endif
 
-class Socket;
-
 struct sockaddress_t {
     std::string ip;
     int port = 0;
@@ -88,11 +86,6 @@ struct sockrecv_t {
         std::swap(string, other.string);
         std::swap(addr, other.addr);
     }
-};
-
-struct sockevent_t {
-    Socket sock;
-    int events = 0;
 };
 
 class Socket {
@@ -484,6 +477,11 @@ public:
     }
 };
 
+struct sockevent_t {
+    Socket sock;
+    int events = 0;
+};
+
 class Poll {
     std::vector<pollfd> fds;
     std::map<int, Socket> usingSockets;
@@ -518,8 +516,8 @@ public:
         for (pollfd& i : fds) {
             Socket sock = usingSockets[i.fd];
 
-            if (sock.recvAvailable()) {
-                ret.push_back({sock, i.revents});
+            if (i.revents & i.events) {
+                ret.push_back(sockevent_t({sock, i.revents}));
                 i.revents = 0;
             }
         }
