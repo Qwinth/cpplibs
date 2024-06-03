@@ -1,4 +1,4 @@
-// version 1.9.8
+// version 1.9.8-c1
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -491,7 +491,7 @@ class Poll {
     pollfd sock_to_pollfd(Socket sock, short events) {
         return { sock.fd(), events, 0 };
     }
-
+public:
     void addSocket(Socket sock, short events) {
         fds.push_back(sock_to_pollfd(sock, events));
         usingSockets[sock.fd()] = sock;
@@ -509,7 +509,7 @@ class Poll {
 
         usingSockets.erase(sock.fd());
     }
-public:
+
     std::vector<sockevent_t> poll(int timeout = -1) {
         int nevents = ::poll(fds.data(), fds.size(), timeout);
 
