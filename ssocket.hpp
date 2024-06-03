@@ -1,4 +1,4 @@
-// version 1.9.7-c8.1
+// version 1.9.8
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -33,6 +33,7 @@ typedef int socklen_t;
 
 #elif __linux__
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
@@ -41,11 +42,14 @@ typedef int socklen_t;
 #include <netdb.h>
 #include <fcntl.h>
 #include <poll.h>
+
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
 
 #endif
+
+class Socket;
 
 struct sockaddress_t {
     std::string ip;
@@ -84,6 +88,11 @@ struct sockrecv_t {
         std::swap(string, other.string);
         std::swap(addr, other.addr);
     }
+};
+
+struct sockevent_t {
+    Socket sock;
+    int events = 0;
 };
 
 class Socket {
@@ -439,6 +448,16 @@ public:
         return data;
     }
 
+    size_t recvAvailable() {
+        size_t bytes_available;
+#ifdef _WIN32
+        ioctlsocket(s, FIONREAD, &bytes_available);
+#else
+        ioctl(s, FIONREAD, &bytes_available);
+#endif
+        return s;
+    }
+
     sockaddress_t remoteAddress() {
         return address;
     }
@@ -462,6 +481,50 @@ public:
         ::shutdown(s, SHUT_RDWR);
         ::close(s);
 #endif
+    }
+};
+
+class Poll {
+    std::vector<pollfd> fds;
+    std::map<int, Socket> usingSockets;
+
+    pollfd sock_to_pollfd(Socket sock, short events) {
+        return { sock.fd(), events, 0 };
+    }
+
+    void addSocket(Socket sock, short events) {
+        fds.push_back(sock_to_pollfd(sock, events));
+        usingSockets[sock.fd()] = sock;
+    }
+
+    void removeSocket(Socket sock) {
+        for (int i = 0; i < fds.size(); i++) {
+            int fd = fds[i].fd;
+
+            if (fd == sock.fd()) {
+                fds.erase(fds.begin() + i);
+                break;
+            }
+        }
+
+        usingSockets.erase(sock.fd());
+    }
+public:
+    std::vector<sockevent_t> poll(int timeout = -1) {
+        int nevents = ::poll(fds.data(), fds.size(), timeout);
+
+        std::vector<sockevent_t> ret;
+
+        for (pollfd& i : fds) {
+            Socket sock = usingSockets[i.fd];
+
+            if (sock.recvAvailable()) {
+                ret.push_back({sock, i.revents});
+                i.revents = 0;
+            }
+        }
+
+        return ret;
     }
 };
 
