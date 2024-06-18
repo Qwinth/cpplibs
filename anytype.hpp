@@ -1,4 +1,4 @@
-// version 1.1-c1
+// version 1.2
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -19,18 +19,86 @@ enum Types {
 struct AnyType {
     Types type = ANYNONE;
     std::string str;
-    unsigned char* bytes = nullptr;
-    void* pointer = nullptr;
     long long integer = 0;
     long double lfloat = 0;
     bool boolean = false;
     std::vector<AnyType*> list;
     std::map<AnyType*, AnyType*> dict;
 
+    AnyType() = default;
+    AnyType(std::string val) { str = val; type = ANYSTRING; }
+    AnyType(const char* val) { str = val; type = ANYSTRING; }
+    AnyType(char val) { integer = val; type = ANYINTEGER; }
+    AnyType(short val) { integer = val; type = ANYINTEGER; }
+    AnyType(int val) { integer = val; type = ANYINTEGER; }
+    AnyType(long val) { integer = val; type = ANYINTEGER; }
+    AnyType(long long val) { integer = val; type = ANYINTEGER; }
+    AnyType(float val) { lfloat = val; type = ANYFLOAT; }
+    AnyType(double val) { lfloat = val; type = ANYFLOAT; }
+    AnyType(long double val) { lfloat = val; type = ANYFLOAT; }
+    AnyType(bool val) { boolean = val; type = ANYBOOLEAN; }
+    AnyType(std::vector<AnyType*> val) { list = val; type = ANYLIST; }
+    AnyType(std::map<AnyType*, AnyType*> val) { dict = val; type = ANYDICT; }
+    AnyType(const AnyType& obj) {
+        clear();
+        copy(obj);
+
+        // std::cout << "Copy constructor" << std::endl;
+    }
+
+    AnyType(AnyType&& obj) {
+        clear();
+        swap(obj);
+
+        // std::cout << "Move constructor" << std::endl;
+    }
+
+    ~AnyType() {
+        clear();
+    }
+
+    AnyType& operator=(const AnyType& obj) {
+        clear();
+        copy(obj);
+
+        // std::cout << "Copy operator" << std::endl;
+
+        return *this;
+    }
+
+    AnyType& operator=(AnyType&& obj) {
+        clear();
+        swap(obj);
+
+        // std::cout << "Move operator" << std::endl;
+
+        return *this;
+    }
+
+    void copy(const AnyType& obj) {
+        type = obj.type;
+        str = obj.str;
+        integer = obj.integer;
+        lfloat = obj.lfloat;
+        boolean = obj.boolean;
+
+        for (AnyType* i : obj.list) list.push_back(new AnyType(*i));
+        for (auto i : obj.dict) dict[new AnyType(*i.first)] = (new AnyType(*i.second));
+    }
+
+    void swap(AnyType& obj) {
+        std::swap(type, obj.type);
+        std::swap(str, obj.str);
+        std::swap(integer, obj.integer);
+        std::swap(lfloat, obj.lfloat);
+        std::swap(boolean, obj.boolean);
+        std::swap(list, obj.list);
+        std::swap(dict, obj.dict);
+    }
+
     void clear() {
         type = ANYNONE;
         str.clear();
-        bytes = nullptr;
         integer = 0;
         lfloat = 0;
         boolean = false;
@@ -63,7 +131,7 @@ struct AnyType {
             else if (type == ANYBOOLEAN) return boolean == arg.boolean;
             else if (type == ANYLIST) {
                 for (size_t i = 0; i < list.size(); i++) {
-                    if (list[i] != arg.list[i]) return false;
+                    if (*list[i] != *arg.list[i]) return false;
                 }
 
                 return true;
@@ -75,25 +143,6 @@ struct AnyType {
 
     bool operator!=(const AnyType& arg) { return !(*this == arg); }
 
-    AnyType* clonePtr() {
-        AnyType* obj = new AnyType();
-        obj->type = type;
-        obj->str = str;
-        obj->integer = integer;
-        obj->lfloat = lfloat;
-        obj->boolean = boolean;
-        for (auto i : list) obj->list.push_back(i->clonePtr());
-        for (auto i : dict) obj->dict[i.first->clonePtr()] = i.second->clonePtr();
-
-        return obj;        
-    }
-
-    AnyType clone() {
-        AnyType* ptr = clonePtr();
-        AnyType obj = *ptr;
-        delete ptr;
-        return obj;
-    }
 };
 
 void anyPrint(AnyType obj, bool endline = true) {
@@ -103,19 +152,25 @@ void anyPrint(AnyType obj, bool endline = true) {
     else if (obj.type == ANYBOOLEAN) std::cout << std::boolalpha << obj.boolean;
     else if (obj.type == ANYLIST) {
         std::cout << "[";
-        anyPrint(*obj.list[0], false);
-        for (int i = 1; i < obj.list.size(); i++) {
+
+        anyPrint(obj.list[0], false);
+
+        for (size_t i = 1; i < obj.list.size(); i++) {
             std::cout << ", ";
-            anyPrint(*obj.list[i], false);
+
+            anyPrint(obj.list[i], false);
         }
+
         std::cout << "]";
     }
 
     else if (obj.type == ANYDICT) {
         std::cout << "{";
+
         for (auto i : obj.dict) {
             anyPrint(*i.first, false);
             std::cout << ": ";
+
             anyPrint(*i.second, false);
             std::cout << ", ";
         }
@@ -126,13 +181,13 @@ void anyPrint(AnyType obj, bool endline = true) {
     if (endline) std::cout << std::endl;
 }
 
-AnyType str2any(std::string string, Types type) {
-    if (type == ANYSTRING) return { .type = ANYSTRING, .str = string };
-    else if (type == ANYINTEGER) return { .type = ANYINTEGER, .integer = stoll(string) };
-    else if (type == ANYFLOAT) return { .type = ANYFLOAT, .lfloat = stold(string) };
-    else if (type == ANYBOOLEAN) {
-        bool b = false;
-        std::istringstream(string) >> std::boolalpha >> b;
-        return { .type = ANYBOOLEAN, .boolean = b };
-    } else return { ANYNONE };
-}
+// AnyType str2any(std::string string, Types type) {
+//     if (type == ANYSTRING) return { .type = ANYSTRING, .str = string };
+//     else if (type == ANYINTEGER) return { .type = ANYINTEGER, .integer = stoll(string) };
+//     else if (type == ANYFLOAT) return { .type = ANYFLOAT, .lfloat = stold(string) };
+//     else if (type == ANYBOOLEAN) {
+//         bool b = false;
+//         std::istringstream(string) >> std::boolalpha >> b;
+//         return { .type = ANYBOOLEAN, .boolean = b };
+//     } else return { ANYNONE };
+// }

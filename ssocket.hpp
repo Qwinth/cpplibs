@@ -51,7 +51,7 @@ typedef int socklen_t;
 
 struct sockaddress_t {
     std::string ip;
-    int port = 0;
+    short port = 0;
 
     std::string str() { return strformat("%s:%d", ip.c_str(), port); }
 };
@@ -110,7 +110,7 @@ class Socket {
         return true;
     }
 
-    sockaddr_in make_sockaddr_in(std::string ipaddr, int port) {
+    sockaddr_in make_sockaddr_in(std::string ipaddr, short port) {
         sockaddr_in tmpaddr;
 
         if (ipaddr != "") {
@@ -172,23 +172,35 @@ public:
         mutexInit();
     }
 
-    void baseServer(std::string ipaddr, int port, int _listen = 0, bool reuseaddr = false) {
+    void baseServer(std::string ipaddr, short port, int _listen = 0, bool reuseaddr = false) {
         if (reuseaddr) setsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
         bind(ipaddr, port);
         listen(_listen);
     }
 
-    void connect(std::string ipaddr, int port) {
+    void connect(std::string ipaddr, short port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
     }
 
-    void bind(std::string ipaddr, int port) {
+    void connect(std::string addr) {
+        auto tmpaddr = split(addr, ':');
+
+        connect(tmpaddr[0], std::stoi(tmpaddr[1]));
+    }
+
+    void bind(std::string ipaddr, short port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+    }
+
+    void bind(std::string addr) {
+        auto tmpaddr = split(addr, ':');
+
+        bind(tmpaddr[0], std::stoi(tmpaddr[1]));
     }
 
     std::string gethostbyname(std::string name) {
@@ -262,6 +274,8 @@ public:
         return { Socket(new_socket, this->sock_type, this->sock_af, sockaddr_in_to_sockaddress_t(client)), sockaddr_in_to_sockaddress_t(client) };
     }
 
+    
+
     int64_t send(const void* data, int64_t size) {
 #ifdef _WIN32
         return ::send(s, (const char*)data, size, 0);
@@ -324,7 +338,7 @@ public:
         return size;
     }
 
-    int64_t sendto(char* buf, int64_t size, std::string ipaddr, int port) {
+    int64_t sendto(char* buf, int64_t size, std::string ipaddr, short port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
@@ -333,7 +347,7 @@ public:
 
     int64_t sendto(char* buf, int64_t size, sockaddress_t addr) { return sendto(buf, size, addr.ip, addr.port); }
 
-    int64_t sendto(std::string buf, std::string ipaddr, int port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
+    int64_t sendto(std::string buf, std::string ipaddr, short port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
 
     int64_t sendto(std::string buf, sockaddress_t addr) { return sendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
 
@@ -448,7 +462,7 @@ public:
 #else
         ioctl(s, FIONREAD, &bytes_available);
 #endif
-        return s;
+        return bytes_available;
     }
 
     sockaddress_t remoteAddress() {
