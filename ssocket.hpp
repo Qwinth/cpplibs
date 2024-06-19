@@ -1,4 +1,4 @@
-// version 1.9.8-c2
+// version 1.9.9-c1
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -51,7 +51,7 @@ typedef int socklen_t;
 
 struct sockaddress_t {
     std::string ip;
-    short port = 0;
+    uint16_t port = 0;
 
     std::string str() { return strformat("%s:%d", ip.c_str(), port); }
 };
@@ -110,7 +110,7 @@ class Socket {
         return true;
     }
 
-    sockaddr_in make_sockaddr_in(std::string ipaddr, short port) {
+    sockaddr_in make_sockaddr_in(std::string ipaddr, uint16_t port) {
         sockaddr_in tmpaddr;
 
         if (ipaddr != "") {
@@ -132,7 +132,23 @@ class Socket {
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
-        friend bool operator==(Socket arg1, Socket arg2);
+    friend bool operator==(Socket arg1, Socket arg2);
+
+    void copy(const Socket& obj) {
+        s = obj.s;
+        sock_af = obj.sock_af;
+        sock_type = obj.sock_type;
+        address = obj.address;
+        blocking = obj.blocking;
+    }
+
+    void swap(Socket& obj) {
+        std::swap(s, obj.s);
+        std::swap(sock_af, obj.sock_af);
+        std::swap(sock_type, obj.sock_type);
+        std::swap(address, obj.address);
+        std::swap(blocking, obj.blocking);
+    }
 public:
     Socket() {}
     Socket(int _af, int _type) {  open(_af, _type); }
@@ -146,6 +162,26 @@ public:
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
         mutexInit();
+    }
+
+    Socket(const Socket& obj) {
+        copy(obj);
+    }
+
+    Socket(Socket&& obj) {
+        swap(obj);
+    }
+
+    Socket& operator=(const Socket& obj) {
+        copy(obj);
+
+        return *this;
+    }
+
+    Socket& operator=(Socket&& obj) {
+        swap(obj);
+
+        return *this;
     }
 
     void setblocking(bool _blocking) {
@@ -172,13 +208,13 @@ public:
         mutexInit();
     }
 
-    void baseServer(std::string ipaddr, short port, int _listen = 0, bool reuseaddr = false) {
+    void baseServer(std::string ipaddr, uint16_t port, int _listen = 0, bool reuseaddr = false) {
         if (reuseaddr) setsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
         bind(ipaddr, port);
         listen(_listen);
     }
 
-    void connect(std::string ipaddr, short port) {
+    void connect(std::string ipaddr, uint16_t port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
@@ -191,7 +227,7 @@ public:
         connect(tmpaddr[0], std::stoi(tmpaddr[1]));
     }
 
-    void bind(std::string ipaddr, short port) {
+    void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
@@ -338,7 +374,7 @@ public:
         return size;
     }
 
-    int64_t sendto(char* buf, int64_t size, std::string ipaddr, short port) {
+    int64_t sendto(char* buf, int64_t size, std::string ipaddr, uint16_t port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
@@ -347,7 +383,7 @@ public:
 
     int64_t sendto(char* buf, int64_t size, sockaddress_t addr) { return sendto(buf, size, addr.ip, addr.port); }
 
-    int64_t sendto(std::string buf, std::string ipaddr, short port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
+    int64_t sendto(std::string buf, std::string ipaddr, uint16_t port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
 
     int64_t sendto(std::string buf, sockaddress_t addr) { return sendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
 
@@ -455,7 +491,7 @@ public:
         return data;
     }
 
-    size_t recvAvailable() {
+    size_t recvAvailable() const {
         size_t bytes_available;
 #ifdef _WIN32
         ioctlsocket(s, FIONREAD, &bytes_available);
@@ -465,16 +501,16 @@ public:
         return bytes_available;
     }
 
-    sockaddress_t remoteAddress() {
+    const sockaddress_t remoteAddress() const {
         return address;
     }
 
 #ifdef _WIN32
-    SOCKET fd() {
+    const SOCKET fd() const {
         return s;
     }
 #else
-    int fd() {
+    const int fd() const {
         return s;
     }
 #endif
