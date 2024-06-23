@@ -1,4 +1,4 @@
-// version 1.2
+// version 1.3
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -181,13 +181,13 @@ void anyPrint(AnyType obj, bool endline = true) {
     if (endline) std::cout << std::endl;
 }
 
-// AnyType str2any(std::string string, Types type) {
-//     if (type == ANYSTRING) return { .type = ANYSTRING, .str = string };
-//     else if (type == ANYINTEGER) return { .type = ANYINTEGER, .integer = stoll(string) };
-//     else if (type == ANYFLOAT) return { .type = ANYFLOAT, .lfloat = stold(string) };
-//     else if (type == ANYBOOLEAN) {
-//         bool b = false;
-//         std::istringstream(string) >> std::boolalpha >> b;
-//         return { .type = ANYBOOLEAN, .boolean = b };
-//     } else return { ANYNONE };
-// }
+AnyType str2any(std::string string, Types type) {
+    if (type == ANYSTRING) return string;
+    else if (type == ANYINTEGER) return stoll(string);
+    else if (type == ANYFLOAT) return stold(string);
+    else if (type == ANYBOOLEAN) {
+        bool b = false;
+        std::istringstream(string) >> std::boolalpha >> b;
+        return b;
+    } else return { ANYNONE };
+}

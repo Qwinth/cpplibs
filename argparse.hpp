@@ -1,4 +1,4 @@
-// version 1.2-c1
+// version 1.3
 #include <string>
 #include <vector>
 #include <map>
@@ -55,7 +55,7 @@ public:
                 std::string rawname = (find_raw_args(i.flag1) >= 0) ? i.flag1 : i.flag2;
                 std::string retname = (i.flag2.length() > 0) ? i.flag2 : i.flag1;
 
-                if (i.without_value) parsed_args[retname] = { .type = ANYBOOLEAN, .boolean = true };
+                if (i.without_value) parsed_args[retname] = true;
                 else {
                     if (i.nargs) {
                         AnyType obj;
@@ -63,7 +63,7 @@ public:
 
                         for (int k = find_raw_args(rawname) + 1; k < raw_args.size(); k++) {
                             if (find_argsconfig(raw_args[k]) >= 0) break;
-                            obj.list.push_back(new AnyType({ .type = ANYSTRING, .str = raw_args[k] }));
+                            obj.list.push_back(new AnyType(raw_args[k]));
                         }
 
                         parsed_args[retname] = obj;
@@ -73,12 +73,12 @@ public:
 
                         if (tmparg.find("=") != tmparg.npos && split(tmparg, "=").size() > 1) parsed_args[split(tmparg, "=")[0]] = str2any(split(tmparg, "=")[1], i.type);
                         else if (find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = str2any(raw_args[find_raw_args(rawname) + 1], i.type);
-                        else parsed_args[retname] = { .type = ANYNONE, .boolean = false };
+                        else parsed_args[retname] = false;
                     }
                 }
             } else {
-                if (i.flag2.length() > 0) parsed_args[i.flag2] = { .type = ANYNONE, .boolean = false };
-                else if (i.flag1.length() > 0) parsed_args[i.flag1] = { .type = ANYNONE, .boolean = false };
+                if (i.flag2.length() > 0) parsed_args[i.flag2] = false;
+                else if (i.flag1.length() > 0) parsed_args[i.flag1] = false;
             }
         }
 
