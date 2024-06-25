@@ -73,12 +73,12 @@ public:
 
                         if (tmparg.find("=") != tmparg.npos && split(tmparg, "=").size() > 1) parsed_args[split(tmparg, "=")[0]] = str2any(split(tmparg, "=")[1], i.type);
                         else if (find_raw_args(rawname) + 1 < raw_args.size()) parsed_args[retname] = str2any(raw_args[find_raw_args(rawname) + 1], i.type);
-                        else parsed_args[retname] = false;
+                        else parsed_args[retname];
                     }
                 }
             } else {
-                if (i.flag2.length() > 0) parsed_args[i.flag2] = false;
-                else if (i.flag1.length() > 0) parsed_args[i.flag1] = false;
+                if (i.flag2.length() > 0) parsed_args[i.flag2];
+                else if (i.flag1.length() > 0) parsed_args[i.flag1];
             }
         }
 

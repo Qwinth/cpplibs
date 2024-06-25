@@ -1,4 +1,4 @@
-// version 1.9.9-c1
+// version 1.9.9-c2
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -360,13 +360,11 @@ public:
     }
 
     int64_t send_file(std::ifstream& file) {
-        char* buffer = new char[65536];
+        char* buffer = new char[256 * 1024];
         int64_t size = 0;
 
         while (file.tellg() != -1) {
-            std::memset(buffer, 0, 65536);
-
-            file.read(buffer, 65536);
+            file.read(buffer, 256 * 1024);
             size += send(buffer, file.gcount());
         }
 

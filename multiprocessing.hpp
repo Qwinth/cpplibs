@@ -1,6 +1,7 @@
-// version 1.1
+// version 1.2
 #include <thread>
 #include <string>
+#include <functional>
 #include <cstdlib>
 #include <csignal>
 #include <unistd.h>
@@ -32,7 +33,7 @@ public:
         if ((mypid = fork()) == 0) {
             if (name.size()) prctl(PR_SET_NAME, name.c_str());
 
-            func(*this, args...);
+            std::invoke(func, *this, args...);
             std::exit(errno);
         }
 
