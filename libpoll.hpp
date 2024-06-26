@@ -1,3 +1,4 @@
+// version 1.0
 #include <vector>
 #include <algorithm>
 
@@ -17,6 +18,8 @@
 #elif __linux__
 #include <sys/poll.h>
 #endif
+
+#pragma once
 
 struct pollEvent {
     int fd;
