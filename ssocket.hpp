@@ -1,4 +1,4 @@
-// version 1.9.9-c2
+// version 2.0.0
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -19,17 +19,19 @@
 
 #ifndef _WINSOCKAPI_
 #include <winsock2.h>
-#endif
 
 #pragma comment(lib, "ws2_32.lib")
 
 #define GETSOCKETERRNO() (WSAGetLastError())
-#define poll(a, b, c) (WSAPoll(a, b, c))
+#define mpoll(a, b, c) (WSAPoll(a, b, c))
 #define MSG_CONFIRM 0
+
+#undef MSG_WAITALL
 #define MSG_WAITALL 0
 
-typedef long int64_t;
+// typedef long int64_t;
 typedef int socklen_t;
+#endif
 
 #elif __linux__
 #include <sys/socket.h>
@@ -53,7 +55,7 @@ struct sockaddress_t {
     std::string ip;
     uint16_t port = 0;
 
-    std::string str() { return strformat("%s:%d", ip.c_str(), port); }
+    std::string str() const { return strformat("%s:%d", ip.c_str(), port); }
 };
 
 struct sockrecv_t {
@@ -89,11 +91,7 @@ struct sockrecv_t {
 };
 
 class Socket {
-    int sock_af = AF_INET;
-    int sock_type = SOCK_STREAM;
     sockaddress_t address;
-
-    bool blocking = true;
 
     std::shared_ptr<std::mutex> msgSendMtx = nullptr;
     std::shared_ptr<std::mutex> msgRecvMtx = nullptr;
@@ -113,14 +111,15 @@ class Socket {
     sockaddr_in make_sockaddr_in(std::string ipaddr, uint16_t port) {
         sockaddr_in tmpaddr;
 
-        if (ipaddr != "") {
+        if (ipaddr.size()) {
             if (!checkIp(ipaddr)) ipaddr = gethostbyname(ipaddr);
 
             tmpaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
         }
 
-        else tmpaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        tmpaddr.sin_family = sock_af;
+        else tmpaddr.sin_addr.s_addr = htonl(INADDR_ANY);        
+
+        tmpaddr.sin_family = getsockfamily();
         tmpaddr.sin_port = htons(port);
 
         return tmpaddr;
@@ -132,54 +131,51 @@ class Socket {
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
-    friend bool operator==(Socket arg1, Socket arg2);
 
     void copy(const Socket& obj) {
         s = obj.s;
-        sock_af = obj.sock_af;
-        sock_type = obj.sock_type;
         address = obj.address;
-        blocking = obj.blocking;
     }
 
     void swap(Socket& obj) {
         std::swap(s, obj.s);
-        std::swap(sock_af, obj.sock_af);
-        std::swap(sock_type, obj.sock_type);
         std::swap(address, obj.address);
-        std::swap(blocking, obj.blocking);
     }
 public:
     Socket() {}
-    Socket(int _af, int _type) {  open(_af, _type); }
+    Socket(int _af, int _type) { open(_af, _type); }
 
-    Socket(int fd, int _af, int _type, sockaddress_t addr) {
+    Socket(int fd) {
         s = fd;
-        sock_af = _af;
-        sock_type = _type;
-        address = addr;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
+        try { address = getsockname(); } catch (int) {}
+        try { address = getpeername(); } catch (int) {}
+
         mutexInit();
     }
 
     Socket(const Socket& obj) {
         copy(obj);
+        mutexInit();
     }
 
     Socket(Socket&& obj) {
         swap(obj);
+        mutexInit();
     }
 
     Socket& operator=(const Socket& obj) {
         copy(obj);
+        mutexInit();
 
         return *this;
     }
 
     Socket& operator=(Socket&& obj) {
         swap(obj);
+        mutexInit();
 
         return *this;
     }
@@ -192,17 +188,19 @@ public:
         unsigned long __blocking = !_blocking;
         ioctlsocket(s, FIONBIO, &__blocking);
     #endif
-        blocking = _blocking;
     }
 
-    bool is_blocking() { return blocking; }
+    bool is_blocking() {
+#ifdef __linux__
+        return !(fcntl(s, F_GETFL) & O_NONBLOCK);
+#else
+#endif
+    }
 
-    void open(int _af, int _type) {
+    void open(int _af = AF_INET, int _type = SOCK_STREAM) {
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        sock_af = _af;
-        sock_type = _type;
         if ((s = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
         mutexInit();
@@ -231,6 +229,8 @@ public:
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+
+        address = sockaddr_in_to_sockaddress_t(sock);
     }
 
     void bind(std::string addr) {
@@ -257,6 +257,14 @@ public:
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
+    sockaddress_t getpeername() {
+        sockaddr_in my_addr;
+        socklen_t addrlen = sizeof(sockaddr_in);
+
+        if (::getpeername(s, (sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        return sockaddr_in_to_sockaddress_t(my_addr);
+    }
+
     void setsockopt(int level, int optname, void* optval, int size) {
 #ifdef _WIN32
         if (::setsockopt(s, level, optname, (char*)optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
@@ -269,16 +277,36 @@ public:
         setsockopt(level, optname, &optval, sizeof(int));
     }
 
-    int getsockopt(int level, int optname) {
-        int optval;
-        socklen_t error_code_size = sizeof(int);
+    int getsockopt(int level, int optname, void* optval, socklen_t size) {
 #ifdef _WIN32
-        ::getsockopt(s, level, optname, (char*)&optval, &error_code_size);
+        if (::getsockopt(s, level, optname, (char*)optval, &size) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #elif __linux__
-        ::getsockopt(s, level, optname, &optval, &error_code_size);
+        if (::getsockopt(s, level, optname, optval, &size) == SOCKET_ERROR) throw GETSOCKETERRNO();
 #endif
-        return optval;
+        return size;
     }
+
+    int getsocktype() {
+        int type;
+        getsockopt(SOL_SOCKET, SO_TYPE, &type, sizeof(int));
+
+        return type;
+    }
+#ifdef _WIN32
+    int getsockfamily() {
+        WSAPROTOCOL_INFO proto;
+        WSADuplicateSocket(s, GetCurrentProcessId(), &proto);
+
+        return proto.iAddressFamily;
+    }
+#elif __linux__
+    uint16_t getsockfamily() {
+        sockaddr af;
+        getsockopt(SOL_SOCKET, SO_DOMAIN, &af, sizeof(sockaddr));
+
+        return af.sa_family;
+    }
+#endif
 
     void listen(int clients) {
         if (::listen(s, clients) == SOCKET_ERROR) throw GETSOCKETERRNO();
@@ -307,7 +335,7 @@ public:
 
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { Socket(new_socket, this->sock_type, this->sock_af, sockaddr_in_to_sockaddress_t(client)), sockaddr_in_to_sockaddress_t(client) };
+        return { Socket(new_socket), sockaddr_in_to_sockaddress_t(client) };
     }
 
     
@@ -334,7 +362,7 @@ public:
     int64_t sendall(const void* chardata, int64_t size) {
         int64_t ptr = 0;
 
-        while (ptr < size) ptr += send(((char*)chardata) + ptr, size - ptr);
+        while (ptr < size && GETSOCKETERRNO() == 0) ptr += send(((char*)chardata) + ptr, size - ptr);
         
         return ptr;
     }
@@ -419,8 +447,10 @@ public:
 
         int64_t bufptr = 0;
 
-        while (bufptr < size) {
+        while (bufptr < size && GETSOCKETERRNO() == 0) {
             sockrecv_t part = recv(size - bufptr);
+
+            if (!part.size && is_blocking()) break;
 
             std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
             bufptr += part.size;
@@ -436,7 +466,7 @@ public:
     sockrecv_t recvmsg() {
         msgRecvMtx->lock();
 
-        sockrecv_t recvsize = recv(sizeof(uint32_t));
+        sockrecv_t recvsize = recvall(sizeof(uint32_t));
 
         if (!recvsize.size) {
             msgRecvMtx->unlock();
@@ -492,7 +522,7 @@ public:
     size_t recvAvailable() const {
         size_t bytes_available;
 #ifdef _WIN32
-        ioctlsocket(s, FIONREAD, &bytes_available);
+        ioctlsocket(s, FIONREAD, (unsigned long*)&bytes_available);
 #else
         ioctl(s, FIONREAD, &bytes_available);
 #endif
@@ -525,59 +555,60 @@ public:
     }
 };
 
-struct sockevent_t {
-    Socket sock;
-    int events = 0;
-};
+// struct sockevent_t {
+//     Socket sock;
+//     int events = 0;
+// };
 
-class Poll {
-    std::vector<pollfd> fds;
-    std::map<int, Socket> usingSockets;
+// class Poll {
+//     std::vector<pollfd> fds;
+//     std::map<int, Socket> usingSockets;
 
-    pollfd sock_to_pollfd(Socket sock, short events) {
-        return { sock.fd(), events, 0 };
-    }
-public:
-    void addSocket(Socket sock, short events) {
-        fds.push_back(sock_to_pollfd(sock, events));
-        usingSockets[sock.fd()] = sock;
-    }
+//     pollfd sock_to_pollfd(Socket sock, short events) {
+//         return { sock.fd(), events, 0 };
+//     }
+// public:
+//     void addSocket(Socket sock, short events) {
+//         fds.push_back(sock_to_pollfd(sock, events));
+//         usingSockets[sock.fd()] = sock;
+//     }
 
-    void removeSocket(Socket sock) {
-        for (int i = 0; i < fds.size(); i++) {
-            int fd = fds[i].fd;
+//     void removeSocket(Socket sock) {
+//         for (int i = 0; i < fds.size(); i++) {
+//             int fd = fds[i].fd;
 
-            if (fd == sock.fd()) {
-                fds.erase(fds.begin() + i);
-                break;
-            }
-        }
+//             if (fd == sock.fd()) {
+//                 fds.erase(fds.begin() + i);
+//                 break;
+//             }
+//         }
 
-        usingSockets.erase(sock.fd());
-    }
+//         usingSockets.erase(sock.fd());
+//     }
 
-    std::vector<sockevent_t> poll(int timeout = -1) {
-        int nevents = ::poll(fds.data(), fds.size(), timeout);
+//     std::vector<sockevent_t> poll(int timeout = -1) {
+//         int nevents = ::poll(fds.data(), fds.size(), timeout);
 
-        std::vector<sockevent_t> ret;
+//         std::vector<sockevent_t> ret;
 
-        for (pollfd& i : fds) {
-            Socket sock = usingSockets[i.fd];
+//         for (pollfd& i : fds) {
+//             Socket sock = usingSockets[i.fd];
 
-            if (i.revents & i.events) {
-                ret.push_back(sockevent_t({sock, i.revents}));
-                i.revents = 0;
-            }
-        }
+//             if (i.revents & i.events) {
+//                 ret.push_back(sockevent_t({sock, i.revents}));
+//                 i.revents = 0;
+//             }
+//         }
 
-        return ret;
-    }
-};
+//         return ret;
+//     }
+// };
 
-bool operator==(sockaddress_t arg1, sockaddress_t arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
-bool operator==(sockrecv_t arg1, sockrecv_t arg2) { return arg1.addr == arg2.addr && arg1.string == arg2.string && arg1.size == arg2.size; }
-bool operator==(Socket arg1, Socket arg2) { return arg1.s == arg2.s; }
+bool operator==(sockaddress_t& arg1, sockaddress_t& arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
+bool operator==(sockrecv_t& arg1, sockrecv_t& arg2) { return arg1.addr == arg2.addr && arg1.string == arg2.string && arg1.size == arg2.size; }
+bool operator==(Socket& arg1, Socket& arg2) { return arg1.fd() == arg2.fd(); }
+bool operator==(int fd, Socket& arg2) { return fd == arg2.fd(); }
 
-bool operator!=(sockaddress_t arg1, sockaddress_t arg2) { return !(arg1 == arg2); }
-bool operator!=(sockrecv_t arg1, sockrecv_t arg2) { return !(arg1 == arg2); }
-bool operator!=(Socket arg1, Socket arg2) { return !(arg1 == arg2); }
+bool operator!=(sockaddress_t& arg1, sockaddress_t& arg2) { return !(arg1 == arg2); }
+bool operator!=(sockrecv_t& arg1, sockrecv_t& arg2) { return !(arg1 == arg2); }
+bool operator!=(Socket& arg1, Socket& arg2) { return !(arg1 == arg2); }
