@@ -223,7 +223,7 @@ public:
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) != 0) throw GETSOCKETERRNO();
+        if (::connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
     }
 
     void connect(std::string addr) {
@@ -235,7 +235,7 @@ public:
     void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) != 0) throw GETSOCKETERRNO();
+        if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
         address = sockaddr_in_to_sockaddress_t(sock);
     }
@@ -260,7 +260,7 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getsockname(s, (sockaddr*)&my_addr, &addrlen) != 0) throw GETSOCKETERRNO();
+        if (::getsockname(s, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
@@ -268,15 +268,15 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getpeername(s, (sockaddr*)&my_addr, &addrlen) != 0) throw GETSOCKETERRNO();
+        if (::getpeername(s, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
     void setsockopt(int level, int optname, void* optval, int size) {
 #ifdef _WIN32
-        if (::setsockopt(s, level, optname, (char*)optval, size) != 0) throw GETSOCKETERRNO();
+        if (::setsockopt(s, level, optname, (char*)optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #elif __linux__
-        if (::setsockopt(s, level, optname, optval, size) != 0) throw GETSOCKETERRNO();
+        if (::setsockopt(s, level, optname, optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #endif
     }
 
@@ -286,9 +286,9 @@ public:
 
     int getsockopt(int level, int optname, void* optval, socklen_t size) {
 #ifdef _WIN32
-        if (::getsockopt(s, level, optname, (char*)optval, &size) != 0) throw GETSOCKETERRNO();
+        if (::getsockopt(s, level, optname, (char*)optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #elif __linux__
-        if (::getsockopt(s, level, optname, optval, &size) != 0) throw GETSOCKETERRNO();
+        if (::getsockopt(s, level, optname, optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #endif
         return size;
     }
@@ -316,7 +316,7 @@ public:
 #endif
 
     void listen(int clients) {
-        if (::listen(s, clients) != 0) throw GETSOCKETERRNO();
+        if (::listen(s, clients) == INVALID_SOCKET) throw GETSOCKETERRNO();
     }
 
     void setrecvtimeout(int seconds) {
