@@ -1,4 +1,4 @@
-// version 2.0.0
+// version 2.0.0-c1
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -96,6 +96,8 @@ class Socket {
     std::shared_ptr<std::mutex> msgSendMtx = nullptr;
     std::shared_ptr<std::mutex> msgRecvMtx = nullptr;
 
+    bool blocking = true;
+
 #ifdef _WIN32
     WSADATA wsa;
     SOCKET s;
@@ -135,11 +137,13 @@ class Socket {
     void copy(const Socket& obj) {
         s = obj.s;
         address = obj.address;
+        blocking = obj.blocking;
     }
 
     void swap(Socket& obj) {
         std::swap(s, obj.s);
         std::swap(address, obj.address);
+        std::swap(blocking, obj.blocking);
     }
 public:
     Socket() {}
@@ -184,16 +188,19 @@ public:
     #ifdef __linux__
         if (_blocking) fcntl(s, F_SETFL, fcntl(s, F_GETFL) & ~O_NONBLOCK);
         else fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);
-    #else
+    #elif _WIN32
         unsigned long __blocking = !_blocking;
         ioctlsocket(s, FIONBIO, &__blocking);
     #endif
+
+        blocking = _blocking;
     }
 
     bool is_blocking() {
 #ifdef __linux__
         return !(fcntl(s, F_GETFL) & O_NONBLOCK);
-#else
+#elif _WIN32
+        return blocking;
 #endif
     }
 
@@ -216,7 +223,7 @@ public:
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) != 0) throw GETSOCKETERRNO();
     }
 
     void connect(std::string addr) {
@@ -228,7 +235,7 @@ public:
     void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) != 0) throw GETSOCKETERRNO();
 
         address = sockaddr_in_to_sockaddress_t(sock);
     }
@@ -253,7 +260,7 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getsockname(s, (sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::getsockname(s, (sockaddr*)&my_addr, &addrlen) != 0) throw GETSOCKETERRNO();
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
@@ -261,15 +268,15 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getpeername(s, (sockaddr*)&my_addr, &addrlen) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::getpeername(s, (sockaddr*)&my_addr, &addrlen) != 0) throw GETSOCKETERRNO();
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
     void setsockopt(int level, int optname, void* optval, int size) {
 #ifdef _WIN32
-        if (::setsockopt(s, level, optname, (char*)optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::setsockopt(s, level, optname, (char*)optval, size) != 0) throw GETSOCKETERRNO();
 #elif __linux__
-        if (::setsockopt(s, level, optname, optval, size) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::setsockopt(s, level, optname, optval, size) != 0) throw GETSOCKETERRNO();
 #endif
     }
 
@@ -279,9 +286,9 @@ public:
 
     int getsockopt(int level, int optname, void* optval, socklen_t size) {
 #ifdef _WIN32
-        if (::getsockopt(s, level, optname, (char*)optval, &size) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::getsockopt(s, level, optname, (char*)optval, &size) != 0) throw GETSOCKETERRNO();
 #elif __linux__
-        if (::getsockopt(s, level, optname, optval, &size) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::getsockopt(s, level, optname, optval, &size) != 0) throw GETSOCKETERRNO();
 #endif
         return size;
     }
@@ -309,7 +316,7 @@ public:
 #endif
 
     void listen(int clients) {
-        if (::listen(s, clients) == SOCKET_ERROR) throw GETSOCKETERRNO();
+        if (::listen(s, clients) != 0) throw GETSOCKETERRNO();
     }
 
     void setrecvtimeout(int seconds) {
@@ -362,7 +369,7 @@ public:
     int64_t sendall(const void* chardata, int64_t size) {
         int64_t ptr = 0;
 
-        while (ptr < size && GETSOCKETERRNO() == 0) ptr += send(((char*)chardata) + ptr, size - ptr);
+        while (ptr < size) ptr += send(((char*)chardata) + ptr, size - ptr);        
         
         return ptr;
     }
@@ -447,10 +454,10 @@ public:
 
         int64_t bufptr = 0;
 
-        while (bufptr < size && GETSOCKETERRNO() == 0) {
+        while (bufptr < size) {
             sockrecv_t part = recv(size - bufptr);
 
-            if (!part.size && is_blocking()) break;
+            if (part.size < 0) break;
 
             std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
             bufptr += part.size;
