@@ -1,4 +1,4 @@
-// version 2.0.0-c1
+// version 2.0.0-c2
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -334,7 +334,7 @@ public:
         setsockopt(IPPROTO_TCP, TCP_NODELAY, &i, sizeof(int));
     }
 
-    std::pair<Socket, sockaddress_t> accept() {
+    Socket accept() {
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
 
@@ -342,7 +342,7 @@ public:
 
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        return { Socket(new_socket), sockaddr_in_to_sockaddress_t(client) };
+        return new_socket;
     }
 
     
@@ -526,7 +526,7 @@ public:
         return data;
     }
 
-    size_t recvAvailable() const {
+    size_t tcpRecvAvailable() const {
         size_t bytes_available;
 #ifdef _WIN32
         ioctlsocket(s, FIONREAD, (unsigned long*)&bytes_available);
@@ -536,7 +536,7 @@ public:
         return bytes_available;
     }
 
-    const sockaddress_t remoteAddress() const {
+    const sockaddress_t socketAddress() const {
         return address;
     }
 
