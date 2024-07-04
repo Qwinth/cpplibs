@@ -1,6 +1,7 @@
 // version 1.0
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 #ifdef _WIN32
 #include "windowsHeader.hpp"
@@ -27,17 +28,28 @@ struct pollEvent {
 };
 
 class Poller {
+    std::mutex poll_mtx;
     std::vector<pollfd> fds;
 public:
     void addDescriptor(int fd, short events) {
+        poll_mtx.lock();
+
         fds.push_back({fd, events, 0});
+
+        poll_mtx.unlock();
     }
 
     void removeDescriptor(int fd) {
+        poll_mtx.lock();
+
         for (size_t i = 0; i < fds.size(); i++) if (fds[i].fd == fd) { fds.erase(fds.begin() + i); break; }
+
+        poll_mtx.unlock();
     }
 
     std::vector<pollEvent> poll(int timeout = -1) {
+        poll_mtx.lock();
+
         std::vector<pollEvent> events;
 
 #ifdef _WIN32
@@ -52,6 +64,7 @@ public:
             for (pollfd& i : fds) {
                 if (i.revents) {
                     events.push_back({i.fd, i.revents});
+                    
                     i.revents = 0;
                     n_events++;
                 }
@@ -59,6 +72,8 @@ public:
                 if (n_events == num_events) break;
             }
         }
+
+        poll_mtx.unlock();
 
         return events;
     }
