@@ -7,7 +7,8 @@
 #include <utility>
 #include <sstream>
 #include <fstream>
-#include "strlib.hpp"
+#include "libstrmanip.hpp"
+#include "libunicodeseq.hpp"
 #pragma once
 
 enum JsonTypes {
