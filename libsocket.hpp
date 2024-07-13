@@ -509,7 +509,7 @@ public:
         return ret;
     }
 
-    char recvbyte() {
+    uint8_t recvbyte() {
         sockrecv_t recvbyte = recv(1);
 
         return (recvbyte.size) ? recvbyte.buffer[0] : 0;
