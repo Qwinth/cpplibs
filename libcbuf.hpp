@@ -1,6 +1,8 @@
 // version 1.1
 #include <algorithm>
 #include <cstring>
+#include <memory>
+#include <mutex>
 #pragma once
 
 class CircularBuffer {
@@ -9,12 +11,50 @@ class CircularBuffer {
 
     size_t bufferSize = 0;
     size_t bufferSizeUsed = 0;
+
+    std::unique_ptr<std::mutex> mtx;
     
     char* buffer = nullptr;
+
+    void copy(const CircularBuffer& obj) {
+        free();
+
+        buffer = new char[obj.bufferSize];
+        memcpy(buffer, obj.buffer, obj.bufferSize);
+
+        bufferSize = obj.bufferSize;
+        bufferSizeUsed = obj.bufferSizeUsed;
+        readIndex = obj.readIndex;
+        writeIndex = obj.writeIndex;
+    }
+
+    void swap(CircularBuffer& obj) {
+        free();
+
+        std::swap(buffer, obj.buffer);
+        std::swap(bufferSize, obj.bufferSize);
+        std::swap(bufferSizeUsed, obj.bufferSizeUsed);
+        std::swap(readIndex, obj.readIndex);
+        std::swap(writeIndex, obj.writeIndex);
+    }
 public:
     CircularBuffer() {}
     CircularBuffer(size_t size) {
         resize(size);
+
+        mtx = std::make_unique<std::mutex>(std::mutex());
+    }
+
+    CircularBuffer(const CircularBuffer& obj) {
+        copy(obj);
+
+        mtx = std::make_unique<std::mutex>(std::mutex());
+    }
+
+    CircularBuffer(CircularBuffer&& obj) {
+        swap(obj);
+
+        mtx = std::make_unique<std::mutex>(std::mutex());
     }
 
     ~CircularBuffer() {
@@ -34,6 +74,8 @@ public:
     size_t read(char* dest, size_t size) {
         if (!bufferSizeUsed) return 0;
 
+        mtx->lock();
+
         size_t destIndex = 0;
         size_t readsize = std::min(size, bufferSizeUsed);
         size_t retsize = readsize;
@@ -52,11 +94,15 @@ public:
         bufferSizeUsed -= readsize;
         readIndex += readsize;
 
+        mtx->unlock();
+
         return retsize;
     }
 
     size_t write(const char* buff, size_t size) {
         if (bufferSizeUsed == bufferSize) return 0;
+
+        mtx->lock();
 
         size_t bufferSizeFree = bufferSize - bufferSizeUsed;
         size_t writesize = std::min(size, bufferSizeFree);
@@ -78,6 +124,36 @@ public:
         writeIndex += writesize;
 
         if (writeIndex == bufferSize) writeIndex = 0;
+
+        mtx->unlock();
+
+        return retsize;
+    }
+    
+    size_t peek(char* dest, size_t size) {
+        if (!bufferSizeUsed) return 0;
+
+        mtx->lock();
+
+        size_t tmpReadIndex = readIndex;
+
+        size_t destIndex = 0;
+        size_t readsize = std::min(size, bufferSizeUsed);
+        size_t retsize = readsize;
+
+        if (readIndex + readsize > bufferSize) {
+            memcpy(&dest[destIndex], &buffer[readIndex], bufferSize - readIndex);
+
+            destIndex += bufferSize - readIndex;
+            readsize -= bufferSize - readIndex;
+            readIndex = 0;
+        }
+
+        memcpy(&dest[destIndex], &buffer[readIndex], readsize);
+        
+        readIndex = tmpReadIndex;
+
+        mtx->unlock();
 
         return retsize;
     }
@@ -106,6 +182,10 @@ public:
         return bufferSizeUsed;
     }
 
+    size_t unused_space() {
+        return bufferSize - bufferSizeUsed;
+    } 
+
     size_t size() {
         return bufferSize;
     }
@@ -128,5 +208,16 @@ public:
 
     char* data() {
         return buffer;
+    }
+
+    void free() {
+        delete[] buffer;
+        buffer = nullptr;
+
+        bufferSize = 0;
+        bufferSizeUsed = 0;
+
+        readIndex = 0;
+        writeIndex = 0;
     }
 };
