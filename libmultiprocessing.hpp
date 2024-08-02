@@ -12,8 +12,10 @@
 
 class process {
     pid_t mypid;
+
     bool tod = true; // terminate on destruct
     std::string name;
+
     int p[2];
 
 public:
@@ -43,6 +45,7 @@ public:
     int join() {
         int status;
         int preverrno = errno;
+        
         if (waitpid(mypid, &status, 0) == -1) if (errno == ECHILD) errno = preverrno;
         return status;
     }
@@ -70,10 +73,14 @@ public:
     }
 
     std::string piperead(size_t size) {
-        char buff[size];
+        char* buff = new char[size];
         ssize_t len = piperead(buff, size);
 
-        return std::string(buff, len);
+        std::string str = std::string(buff, len);
+
+        delete[] buff;
+
+        return str;
     }
 
     ssize_t piperead(void* dest, size_t size) {
