@@ -1,4 +1,4 @@
-// version 2.0.1-c1
+// version 2.0.1-c2
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -12,6 +12,7 @@
 #include <memory>
 
 #include "libstrmanip.hpp"
+#include "libmsgpacket.hpp"
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -381,6 +382,10 @@ public:
         return send(data.c_str(), data.size());
     }
 
+    int64_t send(MsgPacket data) {
+        return send(data.c_str(), data.size());
+    }
+
     int64_t send(char ch) {
         char chbuf[1];
         chbuf[0] = ch;
@@ -391,12 +396,22 @@ public:
     int64_t sendall(const void* chardata, int64_t size) {
         int64_t ptr = 0;
 
-        while (ptr < size) ptr += send(((char*)chardata) + ptr, size - ptr);        
+        while (ptr < size) {
+            int64_t n = send(((char*)chardata) + ptr, size - ptr);
+
+            if (n < 0) break;
+
+            ptr += n;
+        }     
         
         return ptr;
     }
 
     int64_t sendall(std::string data) {
+        return sendall(data.c_str(), data.size());
+    }
+
+    int64_t sendall(MsgPacket data) {
         return sendall(data.c_str(), data.size());
     }
 
@@ -416,6 +431,10 @@ public:
         return sendmsg(data.c_str(), data.size());
     }
 
+    int64_t sendmsg(MsgPacket data) {
+        return sendmsg(data.c_str(), data.size());
+    }
+
     int64_t send_file(std::ifstream& file) {
         char* buffer = new char[256 * 1024];
         int64_t size = 0;
@@ -429,7 +448,7 @@ public:
         return size;
     }
 
-    int64_t sendto(char* buf, int64_t size, std::string ipaddr, uint16_t port) {
+    int64_t sendto(const char* buf, int64_t size, std::string ipaddr, uint16_t port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
@@ -438,11 +457,13 @@ public:
 
     int64_t sendto(char* buf, int64_t size, sockaddress_t addr) { return sendto(buf, size, addr.ip, addr.port); }
 
-    int64_t sendto(std::string buf, std::string ipaddr, uint16_t port) { return sendto((char*)buf.c_str(), buf.size(), ipaddr, port); }
+    int64_t sendto(std::string buf, std::string ipaddr, uint16_t port) { return sendto(buf.c_str(), buf.size(), ipaddr, port); }
+    
+    int64_t sendto(MsgPacket buf, std::string ipaddr, uint16_t port) { return sendto(buf.c_str(), buf.size(), ipaddr, port); }
 
-    int64_t sendto(std::string buf, sockaddress_t addr) { return sendto((char*)buf.c_str(), buf.size(), addr.ip, addr.port); }
+    int64_t sendto(std::string buf, sockaddress_t addr) { return sendto(buf.c_str(), buf.size(), addr.ip, addr.port); }
 
-    int64_t sendto(sockrecv_t data) { return sendto((char*)data.buffer, data.size, data.addr.ip, data.addr.port); }
+    int64_t sendto(sockrecv_t data) { return sendto(data.buffer, data.size, data.addr.ip, data.addr.port); }
 
     sockrecv_t recv(int64_t size) {
         char* buffer = new char[size];
