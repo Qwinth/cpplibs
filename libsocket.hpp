@@ -479,7 +479,7 @@ public:
         while (bufptr < size) {
             sockrecv_t part = recv(size - bufptr);
 
-            if (part.size < 0) break;
+            if (part.size < 0 || blocking && !part.size) break;
 
             std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
             bufptr += part.size;
