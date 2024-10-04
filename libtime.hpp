@@ -1,7 +1,33 @@
 // version 1.0
 #include <cstdlib>
 #include <ctime>
+
+#ifdef _WIN32
+#include <windows.h>
+
+void usleep(__int64 usec) { 
+    HANDLE timer; 
+    LARGE_INTEGER ft; 
+
+    ft.QuadPart = -(10*usec);
+
+    timer = CreateWaitableTimer(NULL, TRUE, NULL); 
+    SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0); 
+    WaitForSingleObject(timer, INFINITE); 
+    CloseHandle(timer); 
+}
+
+int clock_gettime(int, struct timespec *spec)      //C-file part
+{  __int64 wintime; GetSystemTimeAsFileTime((FILETIME*)&wintime);
+   wintime      -=116444736000000000LL;  //1jan1601 to 1jan1970
+   spec->tv_sec  =wintime / 10000000LL;           //seconds
+   spec->tv_nsec =wintime % 10000000LL*100;      //nano-seconds
+   return 0;
+}
+
+#else
 #include <unistd.h>
+#endif
 
 #pragma once
 
@@ -55,7 +81,7 @@ namespace Time {
         return ts.tv_sec * 1'000'000'000 + ts.tv_nsec;
     }
 
-    double clock(ClockType type, TimeFraction frac) {
+    double clock(ClockType type, TimeFraction frac = MICROSECONDS) {
         int64_t raw_time = clock_raw(type);
 
         return time_cast(raw_time, NANOSECONDS, frac);

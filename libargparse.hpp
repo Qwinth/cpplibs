@@ -5,9 +5,11 @@
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
+
+#pragma once
+
 #include "libanytype.hpp"
 #include "libstrmanip.hpp"
-#pragma once
 
 struct arg_config {
     std::string flag1;

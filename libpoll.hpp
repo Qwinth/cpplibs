@@ -12,9 +12,9 @@
 #include <winsock2.h>
 
 #pragma comment(lib, "ws2_32.lib")
-#define mpoll(a, b, c) (WSAPoll(a, b, c))
-
 #endif
+
+#define mpoll(a, b, c) (WSAPoll(a, b, c))
 
 #elif __linux__
 #include <sys/poll.h>
@@ -22,35 +22,39 @@
 
 #pragma once
 
+#include "libfd.hpp"
+
 struct pollEvent {
     int fd;
     short event;
 };
 
+using pollEvents = std::vector<pollEvent>;
+
 class Poller {
     std::mutex poll_mtx;
     std::vector<pollfd> fds;
 public:
-    void addDescriptor(int fd, short events) {
+    void addDescriptor(const FileDescriptor& descriptor, short events) {
         poll_mtx.lock();
 
-        fds.push_back({fd, events, 0});
+        fds.push_back({descriptor.fd(), events, 0});
 
         poll_mtx.unlock();
     }
 
-    void removeDescriptor(int fd) {
+    void removeDescriptor(const FileDescriptor& descriptor) {
         poll_mtx.lock();
 
-        for (size_t i = 0; i < fds.size(); i++) if (fds[i].fd == fd) { fds.erase(fds.begin() + i); break; }
+        for (size_t i = 0; i < fds.size(); i++) if (fds[i].fd == descriptor.fd()) { fds.erase(fds.begin() + i); break; }
 
         poll_mtx.unlock();
     }
 
-    std::vector<pollEvent> poll(int timeout = -1) {
+    pollEvents poll(int timeout = -1) {
         poll_mtx.lock();
 
-        std::vector<pollEvent> events;
+        pollEvents events;
 
 #ifdef _WIN32
         int num_events = mpoll(fds.data(), fds.size(), timeout);

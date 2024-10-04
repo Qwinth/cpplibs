@@ -1,9 +1,10 @@
 #include <string>
 #include <regex>
 #include <iomanip>
-#include "libstrconvert.hpp"
 
 #pragma once
+
+#include "libstrconvert.hpp"
 
 std::map<std::string, std::string> escape_sequences = { {"\\", "\\\\"}, {"\'", "\\'"}, {"\"", "\\\""}, {"\a", "\\a"}, {"\b", "\\b"}, {"\f", "\\f"}, {"\n", "\\n"}, {"\r", "\\r"}, {"\t", "\\t"}, {"\v", "\\v"} };
 std::map<std::string, std::string> escape_sequences_reverse = { {"\\'", "\'"}, {"\\\"", "\""}, {"\\\\", "\\"}, {"\\a", "\a"}, {"\\b", "\b"}, {"\\f", "\f"}, {"\\n", "\n"}, {"\\r", "\r"}, {"\\t", "\t"}, {"\\v", "\v"} };

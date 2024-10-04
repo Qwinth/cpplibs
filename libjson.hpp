@@ -7,9 +7,11 @@
 #include <utility>
 #include <sstream>
 #include <fstream>
+
+#pragma once
+
 #include "libstrmanip.hpp"
 #include "libunicodeseq.hpp"
-#pragma once
 
 enum JsonTypes {
     JSONNONE,

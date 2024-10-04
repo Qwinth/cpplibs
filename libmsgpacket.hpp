@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+
 #pragma once
 
 class MsgPacket {

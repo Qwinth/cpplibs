@@ -1,4 +1,4 @@
-// version 2.0.1-c2
+// version 2.0.1-c3
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -10,9 +10,6 @@
 #include <cstring>
 #include <cstdint>
 #include <memory>
-
-#include "libstrmanip.hpp"
-#include "libmsgpacket.hpp"
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -48,10 +45,13 @@ typedef int socklen_t;
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 #define GETSOCKETERRNO() (errno)
-
 #endif
 
 #pragma once
+
+#include "libstrmanip.hpp"
+#include "libmsgpacket.hpp"
+#include "libfd.hpp"
 
 struct sockaddress_t {
     std::string ip;
@@ -92,7 +92,7 @@ struct sockrecv_t {
     }
 };
 
-class Socket {
+class Socket : public FileDescriptor {
     sockaddress_t address;
 
     std::shared_ptr<std::mutex> msgSendMtx = nullptr;
@@ -102,16 +102,15 @@ class Socket {
 
 #ifdef _WIN32
     WSADATA wsa;
-    SOCKET s;
-#else
-    int s;
 #endif
 
     bool is_socket_fd(int fd) {
     #ifdef _WIN32
-        char optval;
+        int optval;
         int optlen = sizeof(optval);
-        int result = getsockopt(fd, SOL_SOCKET, SO_TYPE, &optval, &optlen);
+
+        int result = ::getsockopt(fd, SOL_SOCKET, SO_TYPE, (char*)&optval, &optlen);
+
         return (result == 0);
     #else
         struct stat statbuf;
@@ -153,13 +152,13 @@ class Socket {
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
 
     void copy(const Socket& obj) {
-        s = obj.s;
+        desc = obj.desc;
         address = obj.address;
         blocking = obj.blocking;
     }
 
     void swap(Socket& obj) {
-        std::swap(s, obj.s);
+        std::swap(desc, obj.desc);
         std::swap(address, obj.address);
         std::swap(blocking, obj.blocking);
     }
@@ -173,7 +172,7 @@ public:
             throw INVALID_SOCKET;
         }
 
-        s = fd;
+        desc = fd;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
@@ -209,11 +208,11 @@ public:
 
     void setblocking(bool _blocking) {
     #ifdef __linux__
-        if (_blocking) fcntl(s, F_SETFL, fcntl(s, F_GETFL) & ~O_NONBLOCK);
-        else fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);
+        if (_blocking) fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) & ~O_NONBLOCK);
+        else fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) | O_NONBLOCK);
     #elif _WIN32
         unsigned long __blocking = !_blocking;
-        ioctlsocket(s, FIONBIO, &__blocking);
+        ioctlsocket(desc, FIONBIO, &__blocking);
     #endif
 
         blocking = _blocking;
@@ -221,7 +220,7 @@ public:
 
     bool is_blocking() {
 #ifdef __linux__
-        return !(fcntl(s, F_GETFL) & O_NONBLOCK);
+        return !(fcntl(desc, F_GETFL) & O_NONBLOCK);
 #elif _WIN32
         return blocking;
 #endif
@@ -231,7 +230,7 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        if ((s = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
         mutexInit();
     }
@@ -246,7 +245,7 @@ public:
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::connect(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
     }
 
     void connect(std::string addr) {
@@ -258,7 +257,7 @@ public:
     void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::bind(s, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
         address = sockaddr_in_to_sockaddress_t(sock);
     }
@@ -283,7 +282,7 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getsockname(s, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::getsockname(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
@@ -291,15 +290,15 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getpeername(s, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::getpeername(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
         return sockaddr_in_to_sockaddress_t(my_addr);
     }
 
     void setsockopt(int level, int optname, void* optval, int size) {
 #ifdef _WIN32
-        if (::setsockopt(s, level, optname, (char*)optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::setsockopt(desc, level, optname, (char*)optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #elif __linux__
-        if (::setsockopt(s, level, optname, optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::setsockopt(desc, level, optname, optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #endif
     }
 
@@ -309,9 +308,9 @@ public:
 
     int getsockopt(int level, int optname, void* optval, socklen_t size) {
 #ifdef _WIN32
-        if (::getsockopt(s, level, optname, (char*)optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::getsockopt(desc, level, optname, (char*)optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #elif __linux__
-        if (::getsockopt(s, level, optname, optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::getsockopt(desc, level, optname, optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
 #endif
         return size;
     }
@@ -325,7 +324,7 @@ public:
 #ifdef _WIN32
     int getsockfamily() {
         WSAPROTOCOL_INFO proto;
-        WSADuplicateSocket(s, GetCurrentProcessId(), &proto);
+        WSADuplicateSocket(desc, GetCurrentProcessId(), &proto);
 
         return proto.iAddressFamily;
     }
@@ -339,7 +338,7 @@ public:
 #endif
 
     void listen(int clients) {
-        if (::listen(s, clients) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::listen(desc, clients) == INVALID_SOCKET) throw GETSOCKETERRNO();
     }
 
     void setrecvtimeout(int seconds) {
@@ -358,10 +357,11 @@ public:
     }
 
     Socket accept() {
+        using std::cout, std::endl;
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
 
-        auto new_socket = ::accept(s, (sockaddr*)&client, (socklen_t*)&c);
+        auto new_socket = ::accept(desc, (sockaddr*)&client, (socklen_t*)&c);
 
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
 
@@ -372,9 +372,9 @@ public:
 
     int64_t send(const void* data, int64_t size) {
 #ifdef _WIN32
-        return ::send(s, (const char*)data, size, 0);
+        return ::send(desc, (const char*)data, size, 0);
 #elif __linux__
-        return ::send(s, data, size, MSG_NOSIGNAL);
+        return ::send(desc, data, size, MSG_NOSIGNAL);
 #endif
     }
 
@@ -452,7 +452,7 @@ public:
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        return ::sendto(s, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
+        return ::sendto(desc, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
     }
 
     int64_t sendto(char* buf, int64_t size, sockaddress_t addr) { return sendto(buf, size, addr.ip, addr.port); }
@@ -472,7 +472,7 @@ public:
         int preverrno = errno;
 
         sockrecv_t data;
-        if ((data.size = ::recv(s, buffer, size, 0)) < 0) {
+        if ((data.size = ::recv(desc, buffer, size, 0)) < 0) {
             errno = preverrno;
 
             delete[] buffer;
@@ -552,7 +552,7 @@ public:
 
         sockrecv_t data;
 
-        if ((data.size = ::recvfrom(s, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
+        if ((data.size = ::recvfrom(desc, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
             errno = preverrno;
 
             delete[] buffer;
@@ -572,9 +572,9 @@ public:
     size_t tcpRecvAvailable() const {
         size_t bytes_available;
 #ifdef _WIN32
-        ioctlsocket(s, FIONREAD, (unsigned long*)&bytes_available);
+        ioctlsocket(desc, FIONREAD, (unsigned long*)&bytes_available);
 #else
-        ioctl(s, FIONREAD, &bytes_available);
+        ioctl(desc, FIONREAD, &bytes_available);
 #endif
         return bytes_available;
     }
@@ -583,24 +583,14 @@ public:
         return address;
     }
 
-#ifdef _WIN32
-    const SOCKET fd() const {
-        return s;
-    }
-#else
-    const int fd() const {
-        return s;
-    }
-#endif
-
     void close() {
 #ifdef _WIN32
-        ::shutdown(s, SD_BOTH);
-        ::closesocket(s);
+        ::shutdown(desc, SD_BOTH);
+        ::closesocket(desc);
         ::WSACleanup();
 #elif __linux__
-        ::shutdown(s, SHUT_RDWR);
-        ::close(s);
+        ::shutdown(desc, SHUT_RDWR);
+        ::close(desc);
 #endif
     }
 };

@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
+
 #pragma once
 
 class Base64 {
