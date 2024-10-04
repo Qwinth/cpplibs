@@ -3,6 +3,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+
 #pragma once
 
 class CircularBuffer {
