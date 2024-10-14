@@ -1,4 +1,4 @@
-// version 1.2
+// version 1.2-c1
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -43,19 +43,19 @@ public:
     CircularBuffer(size_t size) {
         resize(size);
 
-        mtx = std::make_unique<std::mutex>(std::mutex());
+        mtx = std::make_unique<std::mutex>();
     }
 
     CircularBuffer(const CircularBuffer& obj) {
         copy(obj);
 
-        mtx = std::make_unique<std::mutex>(std::mutex());
+        mtx = std::make_unique<std::mutex>();
     }
 
     CircularBuffer(CircularBuffer&& obj) {
         swap(obj);
 
-        mtx = std::make_unique<std::mutex>(std::mutex());
+        mtx = std::make_unique<std::mutex>();
     }
 
     ~CircularBuffer() {
