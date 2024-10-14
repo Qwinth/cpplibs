@@ -39,7 +39,10 @@ class CircularBuffer {
         std::swap(writeIndex, obj.writeIndex);
     }
 public:
-    CircularBuffer() {}
+    CircularBuffer() {
+        mtx = std::make_unique<std::mutex>();
+    }
+    
     CircularBuffer(size_t size) {
         resize(size);
 
