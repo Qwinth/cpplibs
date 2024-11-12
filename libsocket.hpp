@@ -3,8 +3,6 @@
 #include <string>
 #include <fstream>
 #include <algorithm>
-#include <vector>
-#include <map>
 #include <mutex>
 #include <utility>
 #include <cstring>
@@ -95,8 +93,8 @@ struct sockrecv_t {
 class Socket : public FileDescriptor {
     sockaddress_t address;
 
-    std::shared_ptr<std::mutex> msgSendMtx = nullptr;
-    std::shared_ptr<std::mutex> msgRecvMtx = nullptr;
+    std::unique_ptr<std::mutex> msgSendMtx = nullptr;
+    std::unique_ptr<std::mutex> msgRecvMtx = nullptr;
 
     bool blocking = true;
 
@@ -145,8 +143,8 @@ class Socket : public FileDescriptor {
     }
 
     void mutexInit() {
-        msgSendMtx = std::make_shared<std::mutex>();
-        msgRecvMtx = std::make_shared<std::mutex>();
+        msgSendMtx = std::make_unique<std::mutex>();
+        msgRecvMtx = std::make_unique<std::mutex>();
     }
 
     sockaddress_t sockaddr_in_to_sockaddress_t(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }

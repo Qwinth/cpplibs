@@ -1,4 +1,4 @@
-// version 1.2-c1
+// version 1.3
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -6,6 +6,7 @@
 
 #pragma once
 
+template<typename T>
 class CircularBuffer {
     size_t readIndex = 0;
     size_t writeIndex = 0;
@@ -15,12 +16,12 @@ class CircularBuffer {
 
     std::unique_ptr<std::mutex> mtx;
     
-    char* buffer = nullptr;
+    T* buffer = nullptr;
 
     void copy(const CircularBuffer& obj) {
         free();
 
-        buffer = new char[obj.bufferSize];
+        buffer = new T[obj.bufferSize];
         memcpy(buffer, obj.buffer, obj.bufferSize);
 
         bufferSize = obj.bufferSize;
@@ -66,7 +67,7 @@ public:
     }
 
     void resize(size_t size) {
-        char* newbuffer = new char[size];
+        T* newbuffer = new T[size];
 
         memcpy(newbuffer, buffer, std::min(bufferSize, size));
 
@@ -75,7 +76,7 @@ public:
         bufferSize = size;
     }
 
-    size_t read(char* dest, size_t size) {
+    size_t read(T* dest, size_t size) {
         if (!bufferSizeUsed) return 0;
 
         mtx->lock();
@@ -103,7 +104,7 @@ public:
         return retsize;
     }
 
-    size_t write(const char* buff, size_t size) {
+    size_t write(const T* buff, size_t size) {
         if (bufferSizeUsed == bufferSize) return 0;
 
         mtx->lock();
@@ -134,7 +135,7 @@ public:
         return retsize;
     }
     
-    size_t peek(char* dest, size_t size) {
+    size_t peek(T* dest, size_t size) {
         if (!bufferSizeUsed) return 0;
 
         mtx->lock();
@@ -162,10 +163,10 @@ public:
         return retsize;
     }
 
-    char get() {
+    T get() {
         if (!bufferSizeUsed) return 0;
 
-        char ret = buffer[readIndex++];
+        T ret = buffer[readIndex++];
         bufferSizeUsed--;
 
         if (readIndex == bufferSize) readIndex = 0;
@@ -173,10 +174,10 @@ public:
         return ret;
     }
 
-    void put() {
+    void put(T data) {
         if (bufferSizeUsed == bufferSize) return;
 
-        char ret = buffer[writeIndex++];
+        buffer[writeIndex++] = data;
         bufferSizeUsed++;
 
         if (writeIndex == bufferSize) writeIndex = 0;
