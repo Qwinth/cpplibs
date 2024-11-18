@@ -1,4 +1,4 @@
-// version 1.8.2-c1
+// version 1.8.3
 #include <string>
 #include <vector>
 #include <map>
@@ -161,6 +161,20 @@ std::string unpackNumber(std::string& str) {
     else ret = tmp[0];
 
     return ret;
+}
+
+std::pair<int, int> buffDiv(int divnum, int size, const void* source, void* front, void* back) {
+    int front_size = std::min(divnum, size);
+    int back_size = std::max(0, size - divnum);
+
+    std::memcpy(front, source, std::min(divnum, size));
+    std::memcpy(back, ((char*)source) + divnum, std::max(0, size - divnum));
+
+    return {front_size, back_size};
+}
+
+std::pair<std::string, std::string> stringDiv(size_t divnum, std::string& source) {
+    return {source.substr(0, divnum), source.substr(divnum)};
 }
 
 std::string sstrerror(int e) {
