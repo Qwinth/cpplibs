@@ -9,12 +9,15 @@
 #include <iomanip>
 #include <algorithm>
 #include <iterator>
-#include "windowsHeader.hpp"
+
 #ifndef _WIN32
 #include <codecvt>
 #endif
 
 #pragma once
+
+#include "librandom.hpp"
+#include "windowsHeader.hpp"
 
 std::string operator*(std::string str, size_t num) {
     std::string newstr;
@@ -92,12 +95,18 @@ std::string randstring(const int len) {
         "0123456789"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz";
+    
     std::string tmp_s;
-    tmp_s.reserve(len);
 
-    for (int i = 0; i < len; ++i) {
-        tmp_s += alphanum[rand() % (sizeof(alphanum) - 1)];
-    }
+    for (int i = 0; i < len; ++i) tmp_s += alphanum[random(0, sizeof(alphanum) - 1)];
+
+    return tmp_s;
+}
+
+std::string randnums(const int len) {  
+    std::string tmp_s;
+
+    for (int i = 0; i < len; ++i) tmp_s += std::to_string(random(0, 9));
 
     return tmp_s;
 }
