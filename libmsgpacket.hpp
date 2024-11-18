@@ -19,7 +19,7 @@ class MsgPacket {
         msgSize = size;
     }
 public:
-    void write(const char* data, size_t size) {
+    void write(const void* data, size_t size) {
         size_t dataPointer = msgSize;
         resize(msgSize + size);
 

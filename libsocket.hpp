@@ -1,4 +1,4 @@
-// version 2.0.1-c3
+// version 2.0.2
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -90,18 +90,7 @@ struct sockrecv_t {
     }
 };
 
-class Socket : public FileDescriptor {
-    sockaddress_t address;
-
-    std::unique_ptr<std::mutex> msgSendMtx = nullptr;
-    std::unique_ptr<std::mutex> msgRecvMtx = nullptr;
-
-    bool blocking = true;
-
-#ifdef _WIN32
-    WSADATA wsa;
-#endif
-
+namespace SocketUtils {
     bool is_socket_fd(int fd) {
     #ifdef _WIN32
         int optval;
@@ -120,16 +109,39 @@ class Socket : public FileDescriptor {
     #endif
     }
 
-    bool checkIp(std::string ipaddr) {
-        for (auto &i : split(ipaddr, '.')) if (!std::all_of(i.begin(), i.end(), ::isdigit)) return false;
-        return true;
+    bool is_IPv4(std::string ipaddr) {
+        replaceAll(ipaddr, ".", "");
+        return std::all_of(ipaddr.begin(), ipaddr.end(), ::isdigit);
     }
+
+    std::string gethostbyname(std::string name) {
+        hostent* remoteHost;
+        in_addr addr;
+
+        remoteHost = ::gethostbyname(name.c_str());
+
+        addr.s_addr = *(uint64_t*)remoteHost->h_addr_list[0];
+        return std::string(inet_ntoa(addr));
+    }
+};
+
+class Socket : public FileDescriptor {
+    sockaddress_t laddress;
+    sockaddress_t raddress;
+
+    std::unique_ptr<std::mutex> msgRecvMtx = nullptr;
+
+    bool blocking = true;
+
+#ifdef _WIN32
+    WSADATA wsa;
+#endif
 
     sockaddr_in make_sockaddr_in(std::string ipaddr, uint16_t port) {
         sockaddr_in tmpaddr;
 
         if (ipaddr.size()) {
-            if (!checkIp(ipaddr)) ipaddr = gethostbyname(ipaddr);
+            if (!SocketUtils::is_IPv4(ipaddr)) ipaddr = SocketUtils::gethostbyname(ipaddr);
 
             tmpaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
         }
@@ -142,8 +154,7 @@ class Socket : public FileDescriptor {
         return tmpaddr;
     }
 
-    void mutexInit() {
-        msgSendMtx = std::make_unique<std::mutex>();
+    inline void mutexInit() {
         msgRecvMtx = std::make_unique<std::mutex>();
     }
 
@@ -151,13 +162,15 @@ class Socket : public FileDescriptor {
 
     void copy(const Socket& obj) {
         desc = obj.desc;
-        address = obj.address;
+        laddress = obj.laddress;
+        raddress = obj.raddress;
         blocking = obj.blocking;
     }
 
     void swap(Socket& obj) {
         std::swap(desc, obj.desc);
-        std::swap(address, obj.address);
+        std::swap(laddress, obj.laddress);
+        std::swap(raddress, obj.raddress);
         std::swap(blocking, obj.blocking);
     }
 public:
@@ -165,8 +178,8 @@ public:
     Socket(int _af, int _type) { open(_af, _type); }
 
     Socket(int fd) {
-        if (!is_socket_fd(fd)) {
-            std::cout << "Error: Socket(int fd): Non-socket fd" << std::endl;
+        if (!SocketUtils::is_socket_fd(fd)) {
+            std::cerr << "Error: Socket(int fd): Non-socket fd" << std::endl;
             throw INVALID_SOCKET;
         }
 
@@ -174,8 +187,8 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        try { address = getsockname(); } catch (int) {}
-        try { address = getpeername(); } catch (int) {}
+        try { laddress = getsockname(); } catch (int) {}
+        try { raddress = getpeername(); } catch (int) {}
 
         mutexInit();
     }
@@ -257,7 +270,7 @@ public:
 
         if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        address = sockaddr_in_to_sockaddress_t(sock);
+        laddress = sockaddr_in_to_sockaddress_t(sock);
     }
 
     void bind(std::string addr) {
@@ -266,15 +279,7 @@ public:
         bind(tmpaddr[0], std::stoi(tmpaddr[1]));
     }
 
-    std::string gethostbyname(std::string name) {
-        hostent* remoteHost;
-        in_addr addr;
-
-        remoteHost = ::gethostbyname(name.c_str());
-
-        addr.s_addr = *(uint64_t*)remoteHost->h_addr_list[0];
-        return std::string(inet_ntoa(addr));
-    }
+    
 
     sockaddress_t getsockname() {
         sockaddr_in my_addr;
@@ -414,14 +419,14 @@ public:
     }
 
     int64_t sendmsg(const void* data, uint32_t size) {
-        msgSendMtx->lock();
+        MsgPacket packet;
 
         uint32_t netsize = htonl(size);
+        packet.write(&netsize, sizeof(netsize));
+        packet.write(data, size);
 
-        sendall(&netsize, sizeof(uint32_t));
-        int64_t retsize = sendall(data, size);
+        int64_t retsize = sendall(packet);
 
-        msgSendMtx->unlock();
         return retsize;
     }
 
@@ -481,7 +486,7 @@ public:
         std::memcpy(data.buffer, buffer, data.size);
 
         data.string.assign(data.buffer, data.size);
-        data.addr = address;
+        data.addr = raddress;
 
         delete[] buffer;
         return data;
@@ -498,13 +503,13 @@ public:
         while (bufptr < size) {
             sockrecv_t part = recv(size - bufptr);
 
-            if (part.size < 0 || blocking && !part.size) break;
+            if (part.size < 0 || is_blocking() && !part.size) break;
 
             std::memcpy(ret.buffer + bufptr, part.buffer, part.size);
             bufptr += part.size;
         }
 
-        ret.addr = address;
+        ret.addr = raddress;
         ret.size = bufptr;
         ret.string = std::string(ret.buffer, bufptr);
 
@@ -567,8 +572,8 @@ public:
         return data;
     }
 
-    size_t tcpRecvAvailable() const {
-        size_t bytes_available;
+    uint32_t tcpRecvAvailable() const {
+        uint32_t bytes_available;
 #ifdef _WIN32
         ioctlsocket(desc, FIONREAD, (unsigned long*)&bytes_available);
 #else
@@ -577,8 +582,12 @@ public:
         return bytes_available;
     }
 
-    const sockaddress_t socketAddress() const {
-        return address;
+    const sockaddress_t localSocketAddress() const {
+        return laddress;
+    }
+
+    const sockaddress_t remoteSocketAddress() const {
+        return raddress;
     }
 
     void close() {
