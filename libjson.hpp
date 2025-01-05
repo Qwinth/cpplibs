@@ -107,16 +107,16 @@ public:
         objects = value;
     }
 
-    void addPair(std::string key, std::string value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, const char* value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, short value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, int value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, long value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, long long value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, float value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, double value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, long double value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
-    void addPair(std::string key, bool value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, std::string value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, const char* value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, short value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, int value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, long value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, long long value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, float value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, double value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, long double value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
+    // void addPair(std::string key, bool value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void addPair(std::string key, std::vector<JsonNode> value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void addPair(std::string key, std::map<std::string, JsonNode> value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }
     void addPair(std::string key, JsonNode value) { objects[key] = value; if (find(objectsOrder.begin(), objectsOrder.end(), key) == objectsOrder.end()) objectsOrder.push_back(key); type = JSONOBJECT; }

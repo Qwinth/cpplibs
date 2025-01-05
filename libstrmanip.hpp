@@ -186,6 +186,20 @@ std::pair<std::string, std::string> stringDiv(size_t divnum, std::string& source
     return {source.substr(0, divnum), source.substr(divnum)};
 }
 
+std::string strcrypto(std::string data_string, std::string pass) {
+    size_t pass_point = 0;
+    size_t str_point = 0;
+
+    for (size_t i = 0; i < std::max(data_string.size(), pass.size()); i++) {
+        if (pass_point >= pass.size()) pass_point = 0;
+        if (str_point >= data_string.size()) str_point = 0;
+
+        data_string[str_point++] ^= pass[pass_point++];
+    }
+
+    return data_string;
+}
+
 std::string sstrerror(int e) {
 #ifdef _WIN32
     char buff[100];

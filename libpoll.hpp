@@ -25,7 +25,7 @@
 #include "libfd.hpp"
 
 struct pollEvent {
-    int fd;
+    FileDescriptor fd;
     short event;
 };
 
@@ -34,6 +34,7 @@ using pollEvents = std::vector<pollEvent>;
 class Poller {
     std::mutex poll_mtx;
     std::vector<pollfd> fds;
+    
 public:
     void addDescriptor(const FileDescriptor& descriptor, short events) {
         poll_mtx.lock();

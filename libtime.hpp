@@ -27,13 +27,16 @@ int clock_gettime(int, struct timespec *spec)      //C-file part
 
 #else
 #include <unistd.h>
+#include <sys/timerfd.h>
 #endif
+
+#include "libfd.hpp"
 
 #pragma once
 
 namespace Time {
     enum ClockType {
-        SYTEM_CLOCK,
+        SYSTEM_CLOCK,
         TIMER_CLOCK
     };
 
@@ -91,5 +94,24 @@ namespace Time {
         double sleep_time = time_cast(time, frac, MICROSECONDS);
 
         usleep(sleep_time);
+    }
+
+    FileDescriptor fd_timer(double interval, TimeFraction frac = MICROSECONDS, ClockType clock = SYSTEM_CLOCK) {
+        FileDescriptor fd = timerfd_create(clock, 0);
+
+        double time = time_cast(interval, frac, SECONDS);
+
+        long time_sec = time;
+        long time_nsec = time_cast(time - time_sec, SECONDS, NANOSECONDS);
+
+        itimerspec tspec{0};
+        tspec.it_value.tv_sec = time_sec;
+        tspec.it_value.tv_nsec = time_nsec;
+        tspec.it_interval.tv_sec = time_sec;
+        tspec.it_interval.tv_nsec = time_nsec;
+
+        timerfd_settime(fd, 0, &tspec, nullptr);
+
+        return fd;
     }
 }
