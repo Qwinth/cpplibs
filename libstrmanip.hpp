@@ -209,3 +209,26 @@ std::string sstrerror(int e) {
     return strerror(e);
 #endif
 }
+
+class as_string {
+    std::string data;
+public:
+    as_string(int i) { data = to_string(i); }
+    as_string(long i) { data = to_string(i); }
+    as_string(double i) { data = to_string(i); }
+    as_string(bool i) {
+        std::stringstream ss;
+        ss << boolalpha << i;
+
+        data = ss.str();
+    }
+
+    as_string(char i) {
+        char b[1] = {i};
+        data.append(b, 1);
+    }
+
+    operator std::string() {
+        return data;
+    }
+};
