@@ -220,7 +220,7 @@ struct as_string {
     as_string(double i) { data = to_string(i); }
     as_string(bool i) {
         std::stringstream ss;
-        ss << boolalpha << i;
+        ss << std::boolalpha << i;
 
         data = ss.str();
     }
