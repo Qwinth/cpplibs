@@ -213,6 +213,7 @@ std::string sstrerror(int e) {
 class as_string {
     std::string data;
 public:
+    as_string(std::string i) { data = i; }
     as_string(int i) { data = to_string(i); }
     as_string(long i) { data = to_string(i); }
     as_string(double i) { data = to_string(i); }
