@@ -210,9 +210,9 @@ std::string sstrerror(int e) {
 #endif
 }
 
-class as_string {
+struct as_string {
     std::string data;
-public:
+
     as_string() {}
     as_string(std::string i) { data = i; }
     as_string(int i) { data = to_string(i); }
