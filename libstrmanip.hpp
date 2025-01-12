@@ -217,7 +217,9 @@ struct as_string {
     as_string(std::string i) { data = i; }
     as_string(const char* i) { data = i; }
     as_string(int i) { data = std::to_string(i); }
+    as_string(unsigned int i) { data = std::to_string(i); }
     as_string(long i) { data = std::to_string(i); }
+    as_string(unsigned long i) { data = std::to_string(i); }
     as_string(double i) { data = std::to_string(i); }
     as_string(bool i) {
         std::stringstream ss;
