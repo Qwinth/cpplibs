@@ -229,7 +229,7 @@ public:
         data.append(b, 1);
     }
 
-    operator std::string() {
+    operator const std::string() {
         return data;
     }
 };
