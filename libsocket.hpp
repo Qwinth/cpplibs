@@ -472,7 +472,7 @@ public:
         std::memset(buffer, 0, size);
 
         int preverrno = errno;
-        size_t rsize = 0;
+        int64_t rsize = 0;
         
         if ((rsize = ::recv(desc, buffer, size, 0)) < 0) {
             errno = preverrno;
@@ -541,7 +541,7 @@ public:
         std::memset(buffer, 0, size);
 
         int preverrno = errno;
-        size_t rsize = 0;
+        int64_t rsize = 0;
         
 
         if ((rsize = ::recvfrom(desc, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
