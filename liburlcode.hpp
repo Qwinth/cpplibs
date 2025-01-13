@@ -4,7 +4,7 @@
 
 #pragma once
 
-std::string urlDecode(std::string &SRC) {
+std::string urlDecode(std::string SRC) {
     std::string ret;
     char ch;
     int ii;
