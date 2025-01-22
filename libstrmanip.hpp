@@ -19,6 +19,8 @@
 #include "librandom.hpp"
 #include "windowsHeader.hpp"
 
+using vector_string = std::vector<std::string>;
+
 std::string operator*(std::string str, size_t num) {
     std::string newstr;
     for (size_t i = 0; i < num; i++) newstr += str;
@@ -61,8 +63,8 @@ std::string strformat(const std::string fmt, ...) {
 }
 
 
-std::vector<std::string> split(std::string src, std::string delim, size_t limit = 0) {
-    std::vector<std::string> ret;
+vector_string split(std::string src, std::string delim, size_t limit = 0) {
+    vector_string ret;
     size_t startpos = 0;
     size_t endpos = 0;
     size_t count = 0;
@@ -77,14 +79,14 @@ std::vector<std::string> split(std::string src, std::string delim, size_t limit 
     return ret;
 }
 
-std::vector<std::string> split(std::string src, char delim, size_t limit = 0) {
+vector_string split(std::string src, char delim, size_t limit = 0) {
     std::string delimiter;
     delimiter += delim;
 
     return split(src, delimiter, limit);
 }
 
-std::string strjoin(std::vector<std::string> vec, std::string delim) {
+std::string strjoin(vector_string vec, std::string delim) {
     std::ostringstream ostr;
     std::copy(vec.begin(), vec.end(), std::ostream_iterator<std::string>(ostr, delim.c_str()));
     return ostr.str();
@@ -148,7 +150,7 @@ std::string unpackNumber(std::string& str) {
     std::string delim = "E";
     if (str.find('e') != std::string::npos) delim = 'e';
 
-    std::vector<std::string> tmp = split(str, delim);
+    vector_string tmp = split(str, delim);
     if (tmp.size() > 1) {
         if (tmp[1].find('-') != std::string::npos) {
             long double mynum = std::stold(tmp[0]);
