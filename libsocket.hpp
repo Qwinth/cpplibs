@@ -326,7 +326,7 @@ public:
         return type;
     }
 #ifdef _WIN32
-    int getsockfamily() {
+    int getsockfamily() const {
         WSAPROTOCOL_INFO proto;
         WSADuplicateSocket(desc, GetCurrentProcessId(), &proto);
 

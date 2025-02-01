@@ -140,7 +140,6 @@ public:
 };
 
 class Json {
-
     bool check_prev(std::string& str, ssize_t pos, char arg) {
         if (pos - 1 < 0) return false;
         return str[pos - 1] == arg;
@@ -376,7 +375,7 @@ public:
         }
 
         case JSONFLOAT: {
-            str += to_stringWp(node.lfloat, 15);
+            str += std::to_string(node.lfloat);
             break;
         }
 
