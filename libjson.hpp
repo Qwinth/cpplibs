@@ -306,7 +306,7 @@ class Json {
         size_t i = (str[pos] != '{') ? pos : pos + 1;
         size_t endpos = getBrClosePos(str, pos, '{', '}');
 
-        if (endpos == std::string::npos) { std::cout << "Syntax error: object is not closed" << std::endl; exit(1); }
+        if (endpos == std::string::npos) { throw std::runtime_error("Syntax error: object is not closed"); }
         
         std::string key;
         bool iskey = false;
@@ -317,22 +317,21 @@ class Json {
         for (; i <= endpos; i++) {
             char token = str[i];
 
-            if (token == '}') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { std::cout << "Syntax error: object missing value" << std::endl; exit(1); }
+            if (token == '}') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { throw std::runtime_error("Syntax error: object missing value"); }
 
-            else if (token == ':') if (iskey) key = tmpobj.str; else { std::cout << "Syntax error: object missing key" << std::endl; exit(1); }
+            else if (token == ':') if (iskey) key = tmpobj.str; else {  throw std::runtime_error("Syntax error: object missing key"); }
 
-            else if (token == ',') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { std::cout << "Syntax error: object missing value" << std::endl; exit(1); }
+            else if (token == ',') if (isvalue) { node.addPair(key, tmpobj); iskey = false; isvalue = false;} else { throw std::runtime_error("Syntax error: object missing value"); }
 
             else if (token > 32 && token < 127) {
                 auto tmp = parseAny(str, i);
                 tmpobj = tmp.first;
                 i = tmp.second;
 
-                if (iskey == false && (tmp.first.type != JSONSTRING && tmp.first.type != JSONNONE)) { std::cout << "Syntax error: value must be a string" << std::endl; exit(1); }
-                if (iskey && isvalue) { std::cout << "Syntax error: expected comma" << std::endl; exit(1); }
+                if (iskey == false && (tmp.first.type != JSONSTRING && tmp.first.type != JSONNONE)) { throw std::runtime_error("Syntax error: value must be a string"); }
+                if (iskey && isvalue) { throw std::runtime_error("Syntax error: expected comma"); }
                 if (iskey) isvalue = true;
                 iskey = true;
-                // std::cout << "char: " << token << " pos: " << i << std::endl;
             }
         }
         
@@ -340,7 +339,18 @@ class Json {
         return { node, i - 1 };
     }
 public:
-    JsonNode parse(std::string str) { return parseAny(str, findStart(str, 0)).first; }
+    JsonNode parse(std::string str, bool _noexcept = false) {
+        if (_noexcept) {
+            try {
+                return parseAny(str, findStart(str, 0)).first;
+            } catch (...) {
+                return {};
+            }
+        }
+
+        else return parseAny(str, findStart(str, 0)).first;
+    }
+    
     JsonNode parse(std::ifstream& file) {
         std::stringstream tmp;
         tmp << file.rdbuf();
