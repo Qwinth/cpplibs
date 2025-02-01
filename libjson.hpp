@@ -34,6 +34,8 @@ public:
     std::vector<std::string> objectsOrder;
     std::map<std::string, JsonNode> objects;
 
+    bool parsing_error = false;
+
     JsonNode operator[](std::string str) { return (objects.find(str) != objects.end()) ? objects[str] : JsonNode(); }
     JsonNode operator[](size_t num) { return (num < array.size()) ? array[num] : JsonNode(); }
 
@@ -344,19 +346,22 @@ public:
             try {
                 return parseAny(str, findStart(str, 0)).first;
             } catch (...) {
-                return {};
+                JsonNode ret;
+                ret.parsing_error = true;
+
+                return ret;
             }
         }
 
         else return parseAny(str, findStart(str, 0)).first;
     }
-    
-    JsonNode parse(std::ifstream& file) {
+
+    JsonNode parse(std::ifstream& file, bool _noexcept = false) {
         std::stringstream tmp;
         tmp << file.rdbuf();
         std::string str = tmp.str();
 
-        return parseAny(str, findStart(str, 0)).first;
+        return parse(str, _noexcept);
     }
 
     std::string dump(JsonNode node) {

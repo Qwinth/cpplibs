@@ -239,12 +239,6 @@ public:
         mutexInit();
     }
 
-    void baseServer(std::string ipaddr, uint16_t port, int _listen = 0, bool reuseaddr = false) {
-        if (reuseaddr) setsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
-        bind(ipaddr, port);
-        listen(_listen);
-    }
-
     void connect(std::string ipaddr, uint16_t port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
@@ -298,30 +292,28 @@ public:
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
-    void setsockopt(int level, int optname, void* optval, int size) const {
-#ifdef _WIN32
-        if (::setsockopt(desc, level, optname, (char*)optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
-#elif __linux__
-        if (::setsockopt(desc, level, optname, optval, size) == INVALID_SOCKET) throw GETSOCKETERRNO();
-#endif
-    }
+    template<typename T>
+        void setsockopt(int level, int optname, T& optval) {
+    #ifdef _WIN32
+            if (::setsockopt(desc, level, optname, (char*)&optval, sizeof(T)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+    #elif __linux__
+            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+    #endif
+        }
 
-    void setsockopt(int level, int optname, int optval) {
-        setsockopt(level, optname, &optval, sizeof(int));
-    }
+        template<typename T>
+        int getsockopt(int level, int optname, T& optval, socklen_t size = sizeof(T)) const {
+    #ifdef _WIN32
+            if (::getsockopt(desc, level, optname, (char*)&optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+    #elif __linux__
+            if (::getsockopt(desc, level, optname, &optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+    #endif
+            return size;
+        }
 
-    int getsockopt(int level, int optname, void* optval, socklen_t size) const {
-#ifdef _WIN32
-        if (::getsockopt(desc, level, optname, (char*)optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
-#elif __linux__
-        if (::getsockopt(desc, level, optname, optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
-#endif
-        return size;
-    }
-
-    int getsocktype() const {
+    int getsocktype() {
         int type;
-        getsockopt(SOL_SOCKET, SO_TYPE, &type, sizeof(int));
+        getsockopt(SOL_SOCKET, SO_TYPE, type);
 
         return type;
     }
@@ -335,7 +327,7 @@ public:
 #elif __linux__
     uint16_t getsockfamily() const {
         sockaddr af;
-        getsockopt(SOL_SOCKET, SO_DOMAIN, &af, sizeof(sockaddr));
+        getsockopt(SOL_SOCKET, SO_DOMAIN, af);
 
         return af.sa_family;
     }
@@ -349,7 +341,7 @@ public:
         timeval timeout;
         timeout.tv_sec = seconds;
         timeout.tv_usec = 0;
-        setsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeval));
+        setsockopt(SOL_SOCKET, SO_RCVTIMEO, timeout);
     }
 
     void setreuseaddr(int i) {
@@ -357,7 +349,7 @@ public:
     }
 
     void settcpnodelay(int i) {
-        setsockopt(IPPROTO_TCP, TCP_NODELAY, &i, sizeof(int));
+        setsockopt(IPPROTO_TCP, TCP_NODELAY, i);
     }
 
     Socket accept() {
