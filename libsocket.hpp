@@ -1,4 +1,4 @@
-// version 2.4
+// version 2.4-c1
 #pragma once
 #include <iostream>
 #include <string>
@@ -120,10 +120,7 @@ class Socket : public FileDescriptor {
         return (result == 0);
     #else
         struct stat statbuf;
-        if (fstat(fd, &statbuf) == -1) {
-            perror("fstat");
-            return false;
-        }
+        if (fstat(fd, &statbuf) == -1) return false;
         return S_ISSOCK(statbuf.st_mode);
     #endif
     }
@@ -195,10 +192,8 @@ public:
 
         // std::cout << "Deleting container: " << this << ", Links: " << socket_param_table[desc].n_links << ", fd: " << desc << std::endl;
 
-        if (!socket_param_table[desc].n_links) {
+        if (!socket_param_table[desc].n_links && !socket_param_table[desc].opened) {
             if (socket_param_table[desc].callback_thread.joinable()) socket_param_table[desc].callback_thread.join();
-
-            if (socket_param_table[desc].opened) close();
 
             socket_param_table.erase(desc);
 
