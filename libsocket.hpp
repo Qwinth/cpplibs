@@ -1,4 +1,5 @@
-// version 2.1-c1
+// version 2.4
+#pragma once
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -8,6 +9,10 @@
 #include <cstring>
 #include <cstdint>
 #include <memory>
+#include <map>
+#include <functional>
+#include <atomic>
+#include <thread>
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -20,9 +25,7 @@
 
 #define GETSOCKETERRNO() (WSAGetLastError())
 #define MSG_CONFIRM 0
-
-#undef MSG_WAITALL
-#define MSG_WAITALL 0
+#define _MSG_WAITALL 0
 
 // typedef long int64_t;
 typedef int socklen_t;
@@ -42,15 +45,16 @@ typedef int socklen_t;
 
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
+#define _MSG_WAITALL MSG_WAITALL
 #define GETSOCKETERRNO() (errno)
 #endif
 
-#pragma once
-
 #include "libstrmanip.hpp"
+#include "libuuid4.hpp"
 #include "libmsgpacket.hpp"
 #include "libfd.hpp"
 #include "libbytearray.hpp"
+#include "libpoll.hpp"
 
 struct SocketAddress {
     std::string ip;
@@ -59,51 +63,50 @@ struct SocketAddress {
     std::string str() const { return strformat("%s:%d", ip.c_str(), port); }
 };
 
-// struct sockrecv_t {
-//     std::string string;
-//     char* buffer = nullptr;
-//     int64_t size = 0;
-//     SocketAddress addr;
+struct SocketParams {
+    std::atomic_bool opened;
+    std::atomic_bool blocking;
 
-//     ~sockrecv_t() { delete[] buffer; }
-//     sockrecv_t() {}
-//     sockrecv_t(const sockrecv_t& other) noexcept {
-//         buffer = new char[other.size];
-//         std::memcpy(buffer, other.buffer, other.size);
+    std::string param_id;
 
-//         string = other.string;
-//         size = other.size;
-//         addr = other.addr;
-//     }
+    int sock_af;
+    int sock_type;
 
-//     sockrecv_t& operator=(const sockrecv_t& other) {
-//         sockrecv_t copy = other;
-//         swap(copy);
-
-//         return *this;
-//     }
-
-//     void swap(sockrecv_t& other) {
-//         std::swap(buffer, other.buffer);
-//         std::swap(size, other.size);
-//         std::swap(string, other.string);
-//         std::swap(addr, other.addr);
-//     }
-// };
-
-struct SocketData {
-    ByteArray buffer;
-    SocketAddress raddr;
-};
-
-class Socket : public FileDescriptor {
     SocketAddress laddress;
     SocketAddress raddress;
 
-    std::unique_ptr<std::mutex> msgRecvMtx = nullptr;
+    std::mutex recvMtx;
 
-    bool blocking = true;
+    std::function<void(FileDescriptor, short)> callback_func;
+    std::thread callback_thread;
 
+    std::atomic_bool callback_enabled;
+    std::atomic_int n_links;
+};
+
+std::map<FileDescriptor, SocketParams> socket_param_table;
+
+void callback_handler(FileDescriptor fd) {
+    SocketParams& params = socket_param_table[fd];
+
+    Poller poller;
+    poller.addDescriptor(fd, POLLIN | POLLPRI);
+
+    while (params.callback_enabled) {
+        auto ev = poller.poll();
+        params.callback_func(fd, ev.front().event);
+    }
+
+    poller.removeDescriptor(fd);
+}
+
+struct SocketData {
+    ByteArray buffer;
+    SocketAddress addr;
+};
+
+class Socket : public FileDescriptor {
+    std::string param_id;
 #ifdef _WIN32
     WSADATA wsa;
 #endif
@@ -147,25 +150,7 @@ class Socket : public FileDescriptor {
         return tmpaddr;
     }
 
-    inline void mutexInit() {
-        msgRecvMtx = std::make_unique<std::mutex>();
-    }
-
     SocketAddress sockaddr_in_to_SocketAddress(sockaddr_in addr) const { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
-
-    void copy(const Socket& obj) {
-        desc = obj.desc;
-        laddress = obj.laddress;
-        raddress = obj.raddress;
-        blocking = obj.blocking;
-    }
-
-    void swap(Socket& obj) {
-        std::swap(desc, obj.desc);
-        std::swap(laddress, obj.laddress);
-        std::swap(raddress, obj.raddress);
-        std::swap(blocking, obj.blocking);
-    }
 public:
     Socket() {}
     Socket(int _af, int _type) { open(_af, _type); }
@@ -176,36 +161,79 @@ public:
             throw INVALID_SOCKET;
         }
 
-        desc = fd;
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        try { laddress = getsockname(); } catch (int) {}
-        try { raddress = getpeername(); } catch (int) {}
+        desc = fd;
+        param_id = socket_param_table[desc].param_id;
 
-        mutexInit();
+        socket_param_table[desc].n_links++;
+
+        // std::cout << "New container by constructor(FD) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
     }
 
     Socket(const Socket& obj) {
-        copy(obj);
-        mutexInit();
+        desc = obj.desc;
+        param_id = socket_param_table[desc].param_id;
+
+        socket_param_table[desc].n_links++;
+
+        // std::cout << "New container by constructor(COPY) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
     }
 
     Socket(Socket&& obj) {
-        swap(obj);
-        mutexInit();
+        std::swap(desc, obj.desc);
+        param_id = socket_param_table[desc].param_id;
+
+        // std::cout << "Move container by constructor(MOVE) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+    }
+
+    ~Socket() {
+        if (socket_param_table.find(desc) == socket_param_table.end() || socket_param_table[desc].param_id != param_id) return;
+
+        socket_param_table[desc].n_links--;
+
+        // std::cout << "Deleting container: " << this << ", Links: " << socket_param_table[desc].n_links << ", fd: " << desc << std::endl;
+
+        if (!socket_param_table[desc].n_links) {
+            if (socket_param_table[desc].callback_thread.joinable()) socket_param_table[desc].callback_thread.join();
+
+            if (socket_param_table[desc].opened) close();
+
+            socket_param_table.erase(desc);
+
+            // std::cout << "No containers for fd: " << desc << "! Removing socket param table for fd: " << desc << "." << std::endl;
+            // std::cout << "Socket param table size: " << socket_param_table.size() << std::endl;         
+        }
+    }
+
+    Socket& operator=(FileDescriptor fd) {
+        desc = fd;
+        param_id = socket_param_table[desc].param_id;
+
+        socket_param_table[desc].n_links++;
+
+        // std::cout << "New container by operator(FD) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+
+        return *this;
     }
 
     Socket& operator=(const Socket& obj) {
-        copy(obj);
-        mutexInit();
+        desc = obj.desc;
+        param_id = socket_param_table[desc].param_id;
+
+        socket_param_table[desc].n_links++;
+
+        // std::cout << "New container by operator(COPY) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
 
         return *this;
     }
 
     Socket& operator=(Socket&& obj) {
-        swap(obj);
-        mutexInit();
+        std::swap(desc, obj.desc);
+        param_id = socket_param_table[desc].param_id;
+
+        // std::cout << "Move container by operator(MOVE) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
 
         return *this;
     }
@@ -219,14 +247,14 @@ public:
         ioctlsocket(desc, FIONBIO, &__blocking);
     #endif
 
-        blocking = _blocking;
+        socket_param_table[desc].blocking = _blocking;
     }
 
     bool is_blocking() const {
 #ifdef __linux__
         return !(fcntl(desc, F_GETFL) & O_NONBLOCK);
 #elif _WIN32
-        return blocking;
+        return socket_param_table[desc].blocking;
 #endif
     }
 
@@ -236,7 +264,17 @@ public:
 #endif
         if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        mutexInit();
+        socket_param_table[desc].opened = true;
+        param_id = socket_param_table[desc].param_id = uuid4();
+        socket_param_table[desc].sock_af = _af;
+        socket_param_table[desc].sock_type = _type;
+        socket_param_table[desc].n_links = 1;
+
+        // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+    }
+
+    bool is_opened() const {
+        return socket_param_table[desc].opened;
     }
 
     void connect(std::string ipaddr, uint16_t port) {
@@ -244,6 +282,8 @@ public:
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+
+        socket_param_table[desc].raddress = sockaddr_in_to_SocketAddress(sock);
     }
 
     void connect(std::string addr) {
@@ -257,7 +297,7 @@ public:
 
         if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
 
-        laddress = sockaddr_in_to_SocketAddress(sock);
+        socket_param_table[desc].laddress = sockaddr_in_to_SocketAddress(sock);
     }
 
     void bind(std::string addr) {
@@ -353,13 +393,17 @@ public:
     }
 
     Socket accept() {
-        using std::cout, std::endl;
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
 
         FileDescriptor new_socket = ::accept(desc, (sockaddr*)&client, (socklen_t*)&c);
 
         if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
+
+        socket_param_table[new_socket].opened = true;
+        socket_param_table[new_socket].sock_af = socket_param_table[desc].sock_af;
+        socket_param_table[new_socket].sock_type = socket_param_table[desc].sock_type;
+        socket_param_table[new_socket].n_links = 0;
 
         return new_socket;
     }
@@ -380,6 +424,10 @@ public:
         return send(data.c_str(), data.size());
     }
 
+    int64_t send(ByteArray data) {
+        return send(data.c_str(), data.size());
+    }
+
     int64_t send(char ch) {
         char chbuf[1];
         chbuf[0] = ch;
@@ -387,11 +435,11 @@ public:
         return send(chbuf, 1);
     }
 
-    int64_t sendall(const void* chardata, int64_t size) {
+    int64_t sendall(const void* data, int64_t size) {
         int64_t ptr = 0;
 
         while (ptr < size) {
-            int64_t n = send(((char*)chardata) + ptr, size - ptr);
+            int64_t n = send(((char*)data) + ptr, size - ptr);
 
             if (n < 0) break;
 
@@ -409,11 +457,14 @@ public:
         return sendall(data.c_str(), data.size());
     }
 
+    int64_t sendall(ByteArray data) {
+        return sendall(data.c_str(), data.size());
+    }
+
     int64_t sendmsg(const void* data, uint32_t size) {
         MsgPacket packet;
 
-        uint32_t netsize = htonl(size);
-        packet.write(&netsize, sizeof(netsize));
+        packet.write(htonl(size));
         packet.write(data, size);
 
         int64_t retsize = sendall(packet);
@@ -426,6 +477,10 @@ public:
     }
 
     int64_t sendmsg(MsgPacket data) {
+        return sendmsg(data.c_str(), data.size());
+    }
+
+    int64_t sendmsg(ByteArray data) {
         return sendmsg(data.c_str(), data.size());
     }
 
@@ -457,59 +512,64 @@ public:
 
     int64_t sendto(std::string buf, SocketAddress addr) { return sendto(buf.c_str(), buf.size(), addr.ip, addr.port); }
 
-    int64_t sendto(SocketData data) { return sendto(data.buffer.c_str(), data.buffer.size(), data.raddr.ip, data.raddr.port); }
+    int64_t sendto(SocketData data) { return sendto(data.buffer.c_str(), data.buffer.size(), data.addr.ip, data.addr.port); }
 
-    SocketData recv(int64_t size) {
+    SocketData recv(int64_t size, bool mtx_bypass = false) {
         char* buffer = new char[size];
-        std::memset(buffer, 0, size);
 
         int preverrno = errno;
-        int64_t rsize = 0;
-        
-        if ((rsize = ::recv(desc, buffer, size, 0)) < 0) {
-            errno = preverrno;
 
-            delete[] buffer;
-            return {};
+        if (!mtx_bypass) socket_param_table[desc].recvMtx.lock();
+
+        int64_t rsize = ::recv(desc, buffer, size, 0);
+
+        if (rsize < 0 || (!rsize && is_blocking())) {
+            errno = preverrno;
+            rsize = 0;
+
+            // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
+
+            close();
         }
 
+        if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
+
         SocketData data;
-        data.buffer.push(buffer, rsize);
-        data.raddr = raddress;
+        data.buffer.set(buffer, rsize);
+        data.addr = socket_param_table[desc].raddress;
 
         delete[] buffer;
         return data;
     }
 
-    SocketData recvall(int64_t size) {
+    SocketData recvall(int64_t size, bool mtx_bypass = false) {
         SocketData ret;
+        
+        if (!mtx_bypass) socket_param_table[desc].recvMtx.lock();
 
-        while (ret.buffer.size() < size) {
-            SocketData part = recv(size - ret.buffer.size());
+        do ret.buffer.append(recv(size - ret.buffer.size(), true).buffer);
+        while (ret.buffer.size() < size && is_opened());
 
-            if (is_blocking() && !part.buffer.size()) break;
+        if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
 
-            ret.buffer.push(part.buffer);
-        }
-
-        ret.raddr = raddress;
+        ret.addr = socket_param_table[desc].raddress;
 
         return ret;
     }
 
     SocketData recvmsg() {
-        msgRecvMtx->lock();
+        socket_param_table[desc].recvMtx.lock();
 
         SocketData recvsize = recvall(sizeof(uint32_t));
 
         if (!recvsize.buffer.size()) {
-            msgRecvMtx->unlock();
+            socket_param_table[desc].recvMtx.unlock();
             return {};
         }
 
-        SocketData ret = recvall(ntohl(*(uint32_t*)recvsize.buffer.c_str()));
+        SocketData ret = recvall(ntohl(*(uint32_t*)recvsize.buffer.c_str()), true);
 
-        msgRecvMtx->unlock();
+        socket_param_table[desc].recvMtx.unlock();
 
         return ret;
     }
@@ -525,18 +585,16 @@ public:
         socklen_t len = sizeof(sockaddr_in);
 
         if (size > 65536) {
-            std::cout << "Warning: srecvfrom max value 65536" << std::endl;
+            // std::cout << "Warning: srecvfrom max value 65536" << std::endl;
             size = 65536;
         }
 
         char* buffer = new char[size];
-        std::memset(buffer, 0, size);
 
         int preverrno = errno;
         int64_t rsize = 0;
-        
 
-        if ((rsize = ::recvfrom(desc, buffer, size, MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
+        if ((rsize = ::recvfrom(desc, buffer, size, _MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
             errno = preverrno;
 
             delete[] buffer;
@@ -544,8 +602,8 @@ public:
         }
 
         SocketData data;
-        data.buffer.push(buffer, rsize);
-        data.raddr = sockaddr_in_to_SocketAddress(sock);
+        data.buffer.set(buffer, rsize);
+        data.addr = sockaddr_in_to_SocketAddress(sock);
 
         delete[] buffer;
         return data;
@@ -562,14 +620,27 @@ public:
     }
 
     const SocketAddress localSocketAddress() const {
-        return laddress;
+        return socket_param_table[desc].laddress;
     }
 
     const SocketAddress remoteSocketAddress() const {
-        return raddress;
+        return socket_param_table[desc].raddress;
+    }
+
+    void registerCallback(std::function<void(FileDescriptor, short)> callback) {
+        socket_param_table[desc].callback_enabled = true;
+        socket_param_table[desc].callback_func = callback;
+        socket_param_table[desc].callback_thread = std::thread(callback_handler, desc);
+    }
+
+    void removeCallback() {
+        socket_param_table[desc].callback_enabled = false;
+        socket_param_table[desc].callback_thread.join();
+        socket_param_table[desc].callback_func = nullptr;
     }
 
     void close() {
+        // std::cout << "Closing fd: " << desc << std::endl;
 #ifdef _WIN32
         ::shutdown(desc, SD_BOTH);
         ::closesocket(desc);
@@ -578,11 +649,13 @@ public:
         ::shutdown(desc, SHUT_RDWR);
         ::close(desc);
 #endif
+
+        socket_param_table[desc].opened = false;
     }
 };
 
 bool operator==(SocketAddress& arg1, SocketAddress& arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
-bool operator==(SocketData& arg1, SocketData& arg2) { return arg1.raddr == arg2.raddr && arg1.buffer == arg2.buffer; }
+bool operator==(SocketData& arg1, SocketData& arg2) { return arg1.addr == arg2.addr && arg1.buffer == arg2.buffer; }
 bool operator==(Socket& arg1, Socket& arg2) { return arg1.fd() == arg2.fd(); }
 bool operator==(int fd, Socket& arg2) { return fd == arg2.fd(); }
 

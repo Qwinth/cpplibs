@@ -1,8 +1,7 @@
+#pragma once
 #include <string>
 #include <sstream>
 #include <iomanip>
-
-#pragma once
 
 std::string urlDecode(std::string SRC) {
     std::string ret;

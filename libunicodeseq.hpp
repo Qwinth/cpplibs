@@ -1,8 +1,7 @@
+#pragma once
 #include <string>
 #include <regex>
 #include <iomanip>
-
-#pragma once
 
 #include "libstrconvert.hpp"
 

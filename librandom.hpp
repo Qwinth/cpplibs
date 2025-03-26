@@ -1,3 +1,4 @@
+#pragma once
 #include <random>
 
 uint64_t random(uint64_t start, uint64_t end) {

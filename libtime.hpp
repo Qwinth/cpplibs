@@ -1,4 +1,5 @@
 // version 1.0
+#pragma once
 #include <cstdlib>
 #include <ctime>
 
@@ -31,8 +32,6 @@ int clock_gettime(int, struct timespec *spec)      //C-file part
 #endif
 
 #include "libfd.hpp"
-
-#pragma once
 
 namespace Time {
     enum ClockType {

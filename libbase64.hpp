@@ -1,10 +1,9 @@
 // version 1.1-c5
+#pragma once
 #include <string>
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
-
-#pragma once
 
 class Base64 {
     std::string enctable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";

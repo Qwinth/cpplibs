@@ -1,10 +1,9 @@
 // version 1.3
+#pragma once
 #include <algorithm>
 #include <cstring>
 #include <memory>
 #include <mutex>
-
-#pragma once
 
 template<typename T>
 class RingBuffer {

@@ -1,8 +1,7 @@
+#pragma once
 #include <string>
 #include <sstream>
 #include <random>
-
-#pragma once
 
 std::string uuid4() {
     static std::random_device              rd;

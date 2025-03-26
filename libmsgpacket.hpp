@@ -1,9 +1,8 @@
 // version 1.0-c1
+#pragma once
 #include <cstdlib>
 #include <cstring>
 #include <string>
-
-#pragma once
 
 class MsgPacket {
     char* msgBuffer = nullptr;
@@ -24,6 +23,11 @@ public:
         resize(msgSize + size);
 
         memcpy(msgBuffer + dataPointer, data, size);
+    }
+
+    template<typename T>
+    void write(T data) {
+        write(&data, sizeof(T));
     }
 
     void write(std::string data) {

@@ -1,12 +1,11 @@
 // version 1.3-c1
+#pragma once
 #include <string>
 #include <vector>
 #include <map>
 #include <algorithm>
 #include <cstdarg>
 #include <sstream>
-
-#pragma once
 
 #include "libanytype.hpp"
 #include "libstrmanip.hpp"

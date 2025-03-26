@@ -1,8 +1,7 @@
+#pragma once
 #include <string>
 #include <codecvt>
 #include <locale>
-
-#pragma once
 
 #ifndef _WIN32
 std::wstring str2wstr(const std::string& utf8Str) {

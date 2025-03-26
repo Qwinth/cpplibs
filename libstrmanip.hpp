@@ -1,4 +1,5 @@
-// version 1.8.3
+// version 1.8.3-c1
+#pragma once
 #include <string>
 #include <vector>
 #include <map>
@@ -13,8 +14,6 @@
 #ifndef _WIN32
 #include <codecvt>
 #endif
-
-#pragma once
 
 #include "librandom.hpp"
 #include "windowsHeader.hpp"

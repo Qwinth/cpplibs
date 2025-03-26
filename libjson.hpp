@@ -1,4 +1,5 @@
 // version 1.5.2
+#pragma once
 #include <iostream>
 #include <string>
 #include <algorithm>
@@ -7,8 +8,6 @@
 #include <utility>
 #include <sstream>
 #include <fstream>
-
-#pragma once
 
 #include "libstrmanip.hpp"
 #include "libunicodeseq.hpp"

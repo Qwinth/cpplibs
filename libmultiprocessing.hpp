@@ -1,4 +1,5 @@
 // version 1.2
+#pragma once
 #include <thread>
 #include <string>
 #include <functional>
@@ -8,8 +9,6 @@
 #include <stdio.h>
 #include <sys/wait.h>
 #include <sys/prctl.h>
-
-#pragma once
 
 class process {
     pid_t mypid;

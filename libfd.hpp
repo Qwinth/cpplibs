@@ -1,11 +1,10 @@
+#pragma once
 #include <string>
 #include <unistd.h>
 
-#pragma once
-
 class FileDescriptor {
 protected:
-    int desc;
+    int desc = -1;
 
 public:
     FileDescriptor() = default;

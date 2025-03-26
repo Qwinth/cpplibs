@@ -1,10 +1,9 @@
+#pragma once
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
 #include <string>
-
-#pragma once
 
 #include "libbase64.hpp"
 
@@ -28,7 +27,7 @@ class ByteArray {
 
         ByteArray() {}
         ByteArray(const char* new_data, size_t new_size) {
-            push(new_data, new_size);
+            set(new_data, new_size);
         }
 
         ByteArray(std::string data) {
@@ -68,25 +67,25 @@ class ByteArray {
             buffer = new_buffer;
         }
 
-        void push(const char* new_data, size_t size) {
+        void append(const char* new_data, size_t size) {
             size_t old_size = buf_size;
 
-            resize(size);
+            resize(old_size + size);
 
             std::memcpy(buffer + old_size, new_data, size);
         }
 
-        void push(const ByteArray& obj) {
-            push(obj.c_str(), obj.size());
+        void append(const ByteArray& obj) {
+            append(obj.c_str(), obj.size());
         }
 
-        void replace(const char* new_data, size_t new_size) {
+        void set(const char* new_data, size_t new_size) {
             resize(new_size);
 
             std::memcpy(buffer, new_data, new_size);
         }
 
-        void replace(const ByteArray& obj) {
+        void set(const ByteArray& obj) {
             resize(obj.size());
 
             std::memcpy(buffer, obj.c_str(), obj.size());
@@ -103,7 +102,7 @@ class ByteArray {
         }
 
         void fromString(std::string data) {
-            push((const char*)data.c_str(), data.size());
+            set((const char*)data.c_str(), data.size());
         }
 
         ByteArray toBase64() {

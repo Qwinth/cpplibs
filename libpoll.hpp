@@ -1,4 +1,5 @@
 // version 1.0
+#pragma once
 #include <vector>
 #include <algorithm>
 #include <mutex>
@@ -19,8 +20,6 @@
 #elif __linux__
 #include <sys/poll.h>
 #endif
-
-#pragma once
 
 #include "libfd.hpp"
 
