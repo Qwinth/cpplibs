@@ -19,6 +19,7 @@ struct ProxyTable {
     std::atomic_bool callback_enabled;
 
     std::atomic_bool working;
+    std::atomic_bool auto_close;
     std::atomic_int n_links;
 };
 
@@ -51,6 +52,11 @@ void proxy_manager(std::string id) {
         if (!table.sock1.is_opened() || !table.sock2.is_opened()) table.working = false;
     }
 
+    if (table.auto_close) {
+        table.sock1.close();
+        table.sock2.close();
+    }
+
 }
 
 class SocketProxy {
@@ -61,12 +67,38 @@ public:
         create(socket1, socket2, func);
     }
 
+    SocketProxy(std::string id) : proxy_id(id) {
+        proxyTable[proxy_id].n_links++;
+    }
+
+    SocketProxy(const SocketProxy& obj) {
+        proxy_id = obj.proxy_id;
+        proxyTable[proxy_id].n_links++;
+    }
+
+    SocketProxy(SocketProxy&& obj) {
+        std::swap(proxy_id, obj.proxy_id);
+    }
+
     ~SocketProxy() {
         if (proxyTable.find(proxy_id) == proxyTable.end()) return;
 
         proxyTable[proxy_id].n_links--;
 
         if (!proxyTable[proxy_id].n_links) terminate();
+    }
+
+    SocketProxy& operator=(const SocketProxy& obj) {
+        proxy_id = obj.proxy_id;
+        proxyTable[proxy_id].n_links++;
+
+        return *this;
+    }
+
+    SocketProxy& operator=(SocketProxy&& obj) {
+        std::swap(proxy_id, obj.proxy_id);
+        
+        return *this;
     }
 
     void create(Socket socket1, Socket socket2, std::function<void(Socket, Socket)> func = nullptr) {
@@ -82,6 +114,7 @@ public:
         proxyTable[proxy_id].sock2 = socket2;
         proxyTable[proxy_id].proxy_sniff_callback = func;
         proxyTable[proxy_id].callback_enabled = func != nullptr;
+        proxyTable[proxy_id].auto_close = false;
         proxyTable[proxy_id].n_links = 1;
 
         proxyTableMtx.unlock();
@@ -103,11 +136,16 @@ public:
         waitStop();
 
         if (proxyTable.find(proxy_id) != proxyTable.end()) proxyTable.erase(proxy_id);
+        
     }
 
     void setSniffer(std::function<void(Socket, Socket)> func) {
         proxyTable[proxy_id].proxy_sniff_callback = func;
         proxyTable[proxy_id].callback_enabled = func != nullptr;
+    }
+
+    void autoClose(bool state) {
+        proxyTable[proxy_id].auto_close = state;
     }
 
     void waitStop() {

@@ -436,7 +436,10 @@ public:
         while (ptr < size) {
             int64_t n = send(((char*)data) + ptr, size - ptr);
 
-            if (n < 0) break;
+            if (n < 0) {
+                close();
+                break;
+            }
 
             ptr += n;
         }     
@@ -519,12 +522,12 @@ public:
         int64_t rsize = ::recv(desc, buffer, size, 0);
 
         if (rsize < 0 || (!rsize && is_blocking())) {
+            int _errno = errno;
             errno = preverrno;
             rsize = 0;
 
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
-
-            close();
+            if (!((_errno == EAGAIN || _errno == EWOULDBLOCK) && !is_blocking())) close();
         }
 
         if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
@@ -555,7 +558,7 @@ public:
     SocketData recvmsg() {
         socket_param_table[desc].recvMtx.lock();
 
-        SocketData recvsize = recvall(sizeof(uint32_t));
+        SocketData recvsize = recvall(sizeof(uint32_t), true);
 
         if (!recvsize.buffer.size()) {
             socket_param_table[desc].recvMtx.unlock();

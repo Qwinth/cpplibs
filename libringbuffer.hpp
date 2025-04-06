@@ -4,14 +4,19 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <functional>
+#include "libbytearray.hpp"
 
 template<typename T>
 class RingBuffer {
-    size_t readIndex = 0;
-    size_t writeIndex = 0;
+    int64_t readIndex = 0;
+    int64_t writeIndex = 0;
 
-    size_t bufferSize = 0;
-    size_t bufferSizeUsed = 0;
+    int64_t bufferSize = 0;
+    int64_t bufferSizeUsed = 0;
+
+    std::function<void(ByteArray)> overflowCallback = nullptr;
+    std::function<ByteArray(int64_t)> underflowCallback = nullptr;
 
     std::unique_ptr<std::mutex> mtx;
     
@@ -43,7 +48,7 @@ public:
         mtx = std::make_unique<std::mutex>();
     }
     
-    RingBuffer(size_t size) {
+    RingBuffer(int64_t size) {
         resize(size);
 
         mtx = std::make_unique<std::mutex>();
@@ -65,7 +70,7 @@ public:
         delete[] buffer;
     }
 
-    void resize(size_t size) {
+    void resize(int64_t size) {
         T* newbuffer = new T[size];
 
         memcpy(newbuffer, buffer, std::min(bufferSize, size));
@@ -75,95 +80,82 @@ public:
         bufferSize = size;
     }
 
-    size_t read(T* dest, size_t size) {
-        if (!bufferSizeUsed) return 0;
+    int64_t read(T* dest, int64_t size) {
+        std::lock_guard lock(*mtx);
 
-        mtx->lock();
+        if (empty()) return 0;
+        // if (underflowCallback == nullptr) return 0;
+        // else underflowCallback(size);
 
-        size_t destIndex = 0;
-        size_t readsize = std::min(size, bufferSizeUsed);
-        size_t retsize = readsize;
+        int64_t readsize = std::min(size, bufferSizeUsed);
+        int64_t firstPart = std::min(readsize, bufferSize - readIndex);
+        int64_t secondPart = readsize - firstPart;
 
-        if (readIndex + readsize > bufferSize) {
-            memcpy(&dest[destIndex], &buffer[readIndex], bufferSize - readIndex);
-
-            destIndex += bufferSize - readIndex;
-            readsize -= bufferSize - readIndex;
-            bufferSizeUsed -= bufferSize - readIndex;
-            readIndex = 0;
-        }
-
-        memcpy(&dest[destIndex], &buffer[readIndex], readsize);
+        memcpy(dest, &buffer[readIndex], firstPart);
+        memcpy(&dest[firstPart], buffer, secondPart);
 
         bufferSizeUsed -= readsize;
         readIndex += readsize;
 
-        mtx->unlock();
+        if (readIndex >= bufferSize) readIndex -= bufferSize;
 
-        return retsize;
+        return readsize;
     }
 
-    size_t write(const T* buff, size_t size) {
-        if (bufferSizeUsed == bufferSize) return 0;
+    int64_t write(const T* buff, int64_t size) {
+        std::lock_guard lock(*mtx);
 
-        mtx->lock();
+        if (full() || !buff) return 0;
 
-        size_t bufferSizeFree = bufferSize - bufferSizeUsed;
-        size_t writesize = std::min(size, bufferSizeFree);
-        size_t retsize = writesize;
-        size_t buffIndex = 0;
+        int64_t writesize = std::min(size, available());
+        int64_t buffIndex = 0;
 
-        if (writeIndex + writesize > bufferSize) {
-            memcpy(&buffer[writeIndex], &buff[buffIndex], bufferSize - writeIndex);
+        int64_t firstPart = std::min(writesize, bufferSize - writeIndex);
+        int64_t secondPart = writesize - firstPart;
 
-            buffIndex += bufferSize - writeIndex;
-            writesize -= bufferSize - writeIndex;
-            bufferSizeUsed += bufferSize - writeIndex;
-            writeIndex = 0;
-        }
-
-        memcpy(&buffer[writeIndex], &buff[buffIndex], writesize);
+        memcpy(&buffer[writeIndex], &buff[buffIndex], firstPart);
+        memcpy(buffer, &buff[buffIndex + firstPart], secondPart);
 
         bufferSizeUsed += writesize;
         writeIndex += writesize;
 
-        if (writeIndex == bufferSize) writeIndex = 0;
+        if (writeIndex >= bufferSize) writeIndex -= bufferSize;
 
-        mtx->unlock();
-
-        return retsize;
+        return writesize;
     }
     
-    size_t peek(T* dest, size_t size) {
-        if (!bufferSizeUsed) return 0;
+    // int64_t peek(T* dest, int64_t size) {
+    //     if (!bufferSizeUsed) return 0;
 
-        mtx->lock();
+    //     mtx->lock();
 
-        size_t tmpReadIndex = readIndex;
+    //     int64_t tmpReadIndex = readIndex;
 
-        size_t destIndex = 0;
-        size_t readsize = std::min(size, bufferSizeUsed);
-        size_t retsize = readsize;
+    //     int64_t destIndex = 0;
+    //     int64_t readsize = std::min(size, bufferSizeUsed);
+    //     int64_t retsize = readsize;
 
-        if (readIndex + readsize > bufferSize) {
-            memcpy(&dest[destIndex], &buffer[readIndex], bufferSize - readIndex);
+    //     if (readIndex + readsize > bufferSize) {
+    //         memcpy(&dest[destIndex], &buffer[readIndex], bufferSize - readIndex);
 
-            destIndex += bufferSize - readIndex;
-            readsize -= bufferSize - readIndex;
-            readIndex = 0;
-        }
+    //         destIndex += bufferSize - readIndex;
+    //         readsize -= bufferSize - readIndex;
+    //         readIndex = 0;
+    //     }
 
-        memcpy(&dest[destIndex], &buffer[readIndex], readsize);
+    //     memcpy(&dest[destIndex], &buffer[readIndex], readsize);
         
-        readIndex = tmpReadIndex;
+    //     readIndex = tmpReadIndex;
 
-        mtx->unlock();
+    //     mtx->unlock();
 
-        return retsize;
-    }
+    //     return retsize;
+    // }
 
     T get() {
-        if (!bufferSizeUsed) return 0;
+        std::lock_guard<std::mutex> lock(*mtx);
+
+        if (empty()) return T();
 
         T ret = buffer[readIndex++];
         bufferSizeUsed--;
@@ -174,23 +166,25 @@ public:
     }
 
     void put(T data) {
-        if (bufferSizeUsed == bufferSize) return;
+        std::lock_guard lock(*mtx);
+
+        if (full()) return;
 
         buffer[writeIndex++] = data;
-        bufferSizeUsed++;
+        if (bufferSizeUsed < bufferSize) bufferSizeUsed++;
 
         if (writeIndex == bufferSize) writeIndex = 0;
     }
 
-    size_t usage() {
+    int64_t usage() {
         return bufferSizeUsed;
     }
 
-    size_t unused_space() {
+    int64_t available() {
         return bufferSize - bufferSizeUsed;
     } 
 
-    size_t size() {
+    int64_t size() {
         return bufferSize;
     }
 
