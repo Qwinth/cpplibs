@@ -8,12 +8,18 @@
 
 namespace udtp {
 
-    struct UDTPHeader {
-    private:
+    struct __udtp_param_seq {
+        std::string param;
+        bool is_named;
+    };
+
+    class UDTPHeader {
         std::string name;
 
         vector_string positionalParams;
         std::map<std::string, vector_string> namedParams;
+
+        std::vector<__udtp_param_seq> paramSeq;
 
         bool null;
     public:
@@ -55,6 +61,7 @@ namespace udtp {
 
         void addNamedParam(std::string key, vector_string value) {
             for (auto i : value) namedParams[key].push_back(i);
+            paramSeq.push_back({key, true});
         }
 
         void addNamedParam(std::string key, std::string value) {
@@ -68,7 +75,10 @@ namespace udtp {
                 addNamedParam(tmp.front(), tmp.back());
             }
             
-            else positionalParams.push_back(param);
+            else {
+                positionalParams.push_back(param);
+                paramSeq.push_back({param, false});
+            }
         }
 
         void setNull(bool _null) {
@@ -78,10 +88,13 @@ namespace udtp {
         bool IsNull() {
             return null;
         }
+
+        std::vector<__udtp_param_seq> __get_param_seq() {
+            return paramSeq;
+        }
     };
 
-    struct UDTPPacket {
-    private:
+    class UDTPPacket {
         std::vector<UDTPHeader> headers;
         ByteArray data;
 
@@ -179,7 +192,45 @@ namespace udtp {
         return parse(data.toString());
     }
 
+    std::string __dump_header_params_value(vector_string values) {
+        std::string ret;
+
+        for (auto i : values) ret += i + "|";
+        ret.pop_back();
+
+        return ret;
+    }
+
+    std::string __dump_header_params(UDTPHeader header) {
+        std::string ret;
+        std::vector<__udtp_param_seq> seq = header.__get_param_seq();
+
+        for (auto i : seq) {
+            ret += i.param;
+
+            if (i.is_named) ret += "=" + __dump_header_params_value(header[i.param]);
+
+            ret += ",";
+        }
+
+        ret.pop_back();
+
+        return ret;
+    }
+
     std::string dump(UDTPPacket packet) {
+        std::string ret;
+
+        if (packet.IsNull()) return {};
+
+        ret += "[";
+
+        for (auto i : packet.getHeaders()) ret += i.getName() + ":" + __dump_header_params(i) + ";";
+        ret.pop_back();
+
+        ret += "]";
+        ret += packet.getData().toString();
         
+        return ret;
     }
 };
