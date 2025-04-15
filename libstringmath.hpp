@@ -1,4 +1,4 @@
-// version 1.0
+// version 1.1-c1
 #pragma once
 #include <string>
 #include <cmath>
@@ -10,8 +10,8 @@
 namespace string_math {
     enum TokenType {
         EXPRESSION,
-        UNARY_MINUS,
         POWER,
+        UNARY_MINUS,
         MUL,
         DIV,
         PLUS,
@@ -20,13 +20,15 @@ namespace string_math {
         UNDEFINED
     };
 
-    std::map<TokenType, int> tokenPriority = {{EXPRESSION, 0}, {UNARY_MINUS, 1}, {POWER, 1}, {MUL, 2}, {DIV, 2}, {PLUS, 3}, {MINUS, 3}, {NUMBER, 4}};
+    std::map<TokenType, int> tokenPriority = {{EXPRESSION, 0}, {POWER, 1}, {UNARY_MINUS, 1}, {MUL, 3}, {DIV, 3}, {PLUS, 4}, {MINUS, 4}, {NUMBER, 5}};
     std::map<char, TokenType> mathOps = {{'+', PLUS}, {'-', MINUS}, {'*', MUL}, {'/', DIV}, {'^', POWER}};
     
     struct MathToken {
         TokenType type;
         std::string value;
         double num_value;
+
+        bool pow_seq;
 
         MathToken() {};
         MathToken(std::string str, TokenType type) : value(str), type(type) {}
@@ -36,36 +38,50 @@ namespace string_math {
     using math_vars = std::map<std::string, double>;
     using math_tokens = std::vector<MathToken>;
 
+    // void printTokens(math_tokens tokens) {
+    //     for (auto i : tokens) {
+    //         std::cout << "token type: " << i.type << " value: " << ((i.type == NUMBER) ? std::to_string(i.num_value) : i.value) << std::endl;
+    //     }
+    // }
+
     bool is_operator(MathToken token) {
         return token.type == UNARY_MINUS || token.type == POWER || token.type == MUL || token.type == DIV || token.type == PLUS || token.type == MINUS;
     }
 
-    bool is_pow_seq(math_tokens& tokens, math_tokens::iterator it) {
-        size_t power_count = 0;
+    bool is_pow_exp(math_tokens& tokens, ssize_t i, bool invert) {
+        if (i + 2 >= tokens.size()) return false;
+        else if (invert && i - 2 < 0) return false;
 
-        for (; it != tokens.end(); it++) {
-            if (it->type != UNARY_MINUS && it->type != NUMBER && it->type != POWER) break;
-            else if (it->type == NUMBER && (it + 1)->type == POWER) power_count++;
+        if (invert) return tokens[i].type == NUMBER && tokens[i - 1].type == POWER;
+
+        return tokens[i].type == NUMBER && tokens[i + 1].type == POWER;
+    }
+
+    bool is_pow_seq(math_tokens& tokens, ssize_t i) {
+        ssize_t power_count = 0;
+
+        for (; i < tokens.size(); i++) {
+            if (tokens[i].type != UNARY_MINUS && tokens[i].type != NUMBER && tokens[i].type != POWER && tokens[i].type != EXPRESSION) break;
+            else if ((tokens[i].type == NUMBER || tokens[i].type == EXPRESSION) && tokens[i + 1].type == POWER) power_count++;
         }
 
         return power_count > 1;
     }
 
-    math_tokens::iterator get_pow_seq_end(math_tokens& tokens, math_tokens::iterator it) {
-        for (; it != tokens.end(); it++) 
-        if (it->type != UNARY_MINUS && it->type != NUMBER && it->type != POWER) break;
-    
-        return it;
+    ssize_t get_pow_seq_end(math_tokens& tokens, ssize_t i) {
+        for (; i < tokens.size(); i++)
+        if (tokens[i].type != UNARY_MINUS && tokens[i].type != NUMBER && tokens[i].type != POWER && tokens[i].type != EXPRESSION) break;
+
+        return i;
     }
 
     void __math_set_vars(math_tokens& tokens, math_vars& vars) {
-        for (auto& i : tokens)
-        if (vars.find(i.value) != vars.end()) i = vars.at(i.value);
+        for (auto& i : tokens) if (vars.find(i.value) != vars.end()) i = vars.at(i.value);
     }
 
-    double solve(std::string, std::map<std::string, double> = {});
+    double solve(std::string, std::map<std::string, double> = {{"p", M_PI}, {"e", M_E}});
 
-    std::string __parse_number(std::string& string, size_t& pos) {
+    std::string __parse_number(std::string& string, ssize_t& pos) {
         std::string ret;
 
         for (; pos < string.size(); pos++) {
@@ -79,9 +95,9 @@ namespace string_math {
         return ret;
     }
 
-    std::string __parse_expression(std::string& string, size_t& pos) {
+    std::string __parse_expression(std::string& string, ssize_t& pos) {
         std::string ret;
-        size_t brackets = 0;
+        ssize_t brackets = 0;
 
         for (; pos < string.size(); pos++) {
             char ch = string[pos];
@@ -98,11 +114,10 @@ namespace string_math {
         return ret;
     }
 
-    std::string __parse_undefined(std::string& string, size_t& pos) {
+    std::string __parse_undefined(std::string& string, ssize_t& pos) {
         std::string ret;
 
         for (; pos < string.size() && isalpha(string[pos]); pos++) ret += string[pos];
-
         pos--;
 
         return ret;
@@ -116,17 +131,14 @@ namespace string_math {
 
         math_tokens tokens;
 
-        for (size_t i = 0; i < string.size(); i++) {
+        for (ssize_t i = 0; i < string.size(); i++) {
             char ch = string[i];
 
-            if (isdigit(ch))
-            tokens.push_back(std::stod(__parse_number(string, i)));
+            if (isdigit(ch)) tokens.push_back(std::stod(__parse_number(string, i)));
 
-            else if (mathOps.find(ch) != mathOps.end())
-            tokens.push_back({std::string(1, ch), mathOps.at(ch)});
+            else if (mathOps.find(ch) != mathOps.end()) tokens.push_back({std::string(1, ch), mathOps.at(ch)});
 
-            else if (ch == '(')
-            tokens.push_back({__parse_expression(string, i), EXPRESSION});
+            else if (ch == '(') tokens.push_back({__parse_expression(string, i), EXPRESSION});
 
             else tokens.push_back({__parse_undefined(string, i), UNDEFINED});
         }
@@ -135,93 +147,135 @@ namespace string_math {
     }
 
     void __math_preprocess(math_tokens& tokens) {
-        for (auto it = tokens.begin(); it != tokens.end(); it++) {
+        for (ssize_t i = 0; i < tokens.size(); i++)
+        if (tokens[i].type == MINUS && (!i || is_operator(tokens[i - 1]))) tokens[i].type = UNARY_MINUS;            
 
-            if (it->type == MINUS && (it == tokens.begin() || is_operator(*(it - 1))))
-            it->type = UNARY_MINUS;
+        for (ssize_t i = 0; i < tokens.size(); i++) {         
+            if (tokens[i].type == POWER) tokens[i].pow_seq = false;
 
-            else if (is_pow_seq(tokens, it)) {
-                auto it_end = get_pow_seq_end(tokens, it);
-                std::reverse(it, it_end);
+            else if (is_pow_seq(tokens, i)) {
+                auto i_end = get_pow_seq_end(tokens, i);
 
-                if (it_end == tokens.end()) it_end--;
+                std::reverse(tokens.begin() + i, tokens.begin() + i_end);
 
-                for (; it != it_end; it++)
-                if (it->type == NUMBER && (it + 1) != tokens.end() && (it + 1)->type == UNARY_MINUS)
-                std::reverse(it, (it + 1)); 
+                for (; i != i_end; i++) if (tokens[i].type == POWER) tokens[i].pow_seq = true;
             }
         }
     }
 
     double __math_calculate(math_tokens& tokens, int priority, math_vars vars) {
+        if (!tokens.size()) return 0;
         if (priority == tokenPriority[NUMBER]) return tokens.front().num_value;
 
-        for (auto it = tokens.begin(); it != tokens.end(); it++) {
+        ssize_t curPriorOps = 0;
 
-            if (tokenPriority.at(it->type) == priority) {
-                if (it->type == EXPRESSION)
-                *it = solve(it->value, vars);
+        for (ssize_t i = 0; i < tokens.size(); i++)
+        if (tokenPriority.at(tokens[i].type) == priority) curPriorOps++;
 
-                else if (it->type == UNARY_MINUS && (it + 1)->type == NUMBER) {
-                    *it = -(it + 1)->num_value;
-                    tokens.erase(it + 1);
+        for (ssize_t i = 0; i < tokens.size(); i++) {
+            
+            if (tokenPriority.at(tokens[i].type) == priority) {
+                if (tokens[i].type == EXPRESSION) {
+                    tokens[i] = solve(tokens[i].value, vars);
+
+                    curPriorOps--;
                 }
 
-                else if (it->type == UNARY_MINUS && (it + 1)->type == UNARY_MINUS) {
-                    tokens.erase(it + 1);
-                    it = tokens.erase(it) - 1;
+                else if (tokens[i].type == UNARY_MINUS && tokens[i + 1].type == NUMBER && !is_pow_exp(tokens, i + 1, false)) {
+                    tokens[i] = -tokens[i + 1].num_value;
+                    tokens.erase(tokens.begin() + i + 1);
+
+                    curPriorOps--;
                 }
 
-                else if (it->type == POWER) {
-                    double op1 = (it + 1)->num_value;
-                    double op2 = (it - 1)->num_value;
+                else if (tokens[i].type == UNARY_MINUS && tokens[i - 1].type == NUMBER && !is_pow_exp(tokens, i - 1, true)) {
+                    tokens[i] = -tokens[i - 1].num_value;
+                    tokens.erase(tokens.begin() + i - 1);
+
+                    i--;
+                    curPriorOps--;
+                }
+
+                else if (tokens[i].type == UNARY_MINUS && tokens[i + 1].type == UNARY_MINUS) {
+                    tokens.erase(tokens.begin() + i + 1);
+                    tokens.erase(tokens.begin() + i);
+
+                    i--;
+                    curPriorOps -= 2;
+                }
+
+                else if (tokens[i].type == POWER && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                    double op1 = tokens[i - 1].num_value;
+                    double op2 = tokens[i + 1].num_value;
+
+                    if (tokens[i].pow_seq) {
+                        op1 = tokens[i + 1].num_value;
+                        op2 = tokens[i - 1].num_value;
+                    }
                     
-                    tokens.erase(it + 1);
-                    it = tokens.erase(it - 1);
+                    tokens.erase(tokens.begin() + i + 1);
+                    tokens.erase(tokens.begin() + i - 1);
 
-                    *it = pow(op1, op2);
+                    i--;
+                    curPriorOps--;
+
+                    tokens[i] = pow(op1, op2);
                 }
 
-                else if (it->type == MUL) {
-                    double op1 = (it - 1)->num_value;
-                    double op2 = (it + 1)->num_value;
+                else if (tokens[i].type == MUL && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                    double op1 = tokens[i - 1].num_value;
+                    double op2 = tokens[i + 1].num_value;
                     
-                    tokens.erase(it + 1);
-                    it = tokens.erase(it - 1);
+                    tokens.erase(tokens.begin() + i + 1);
+                    tokens.erase(tokens.begin() + i - 1);
 
-                    *it = op1 * op2;
+                    i--;
+                    curPriorOps--;
+
+                    tokens[i] = op1 * op2;
                 }
 
-                else if (it->type == DIV) {
-                    double op1 = (it - 1)->num_value;
-                    double op2 = (it + 1)->num_value;
+                else if (tokens[i].type == DIV && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                    double op1 = tokens[i - 1].num_value;
+                    double op2 = tokens[i + 1].num_value;
                     
-                    tokens.erase(it + 1);
-                    it = tokens.erase(it - 1);
+                    tokens.erase(tokens.begin() + i + 1);
+                    tokens.erase(tokens.begin() + i - 1);
 
-                    *it = op1 / op2;
+                    i--;
+                    curPriorOps--;
+
+                    tokens[i] = op1 / op2;
                 }
 
-                else if (it->type == PLUS) {
-                    double op1 = (it - 1)->num_value;
-                    double op2 = (it + 1)->num_value;
+                else if (tokens[i].type == PLUS && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                    double op1 = tokens[i - 1].num_value;
+                    double op2 = tokens[i + 1].num_value;
                     
-                    tokens.erase(it + 1);
-                    it = tokens.erase(it - 1);
+                    tokens.erase(tokens.begin() + i + 1);
+                    tokens.erase(tokens.begin() + i - 1);
 
-                    *it = op1 + op2;
+                    i--;
+                    curPriorOps--;
+
+                    tokens[i] = op1 + op2;
                 }
 
-                else if (it->type == MINUS) {
-                    double op1 = (it - 1)->num_value;
-                    double op2 = (it + 1)->num_value;
+                else if (tokens[i].type == MINUS && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                    double op1 = tokens[i - 1].num_value;
+                    double op2 = tokens[i + 1].num_value;
                     
-                    tokens.erase(it + 1);
-                    it = tokens.erase(it - 1);
+                    tokens.erase(tokens.begin() + i + 1);
+                    tokens.erase(tokens.begin() + i - 1);
 
-                    *it = op1 - op2;
+                    i--;
+                    curPriorOps--;
+
+                    tokens[i] = op1 - op2;
                 }
             }
+
+            if (i + 1 >= tokens.size() && curPriorOps) i = -1;
         }
 
         return __math_calculate(tokens, priority + 1, vars);
