@@ -1,50 +1,57 @@
 #pragma once
 #include <string>
+
+#ifdef __linux__
 #include <unistd.h>
+typedef SOCKET int;
+#elif _WIN32
+#include <io.h>
+typedef SOCKET fd_t;
+#endif
 
 class FileDescriptor {
 protected:
-    int desc = -1;
-
+    fd_t desc = -1;
+    
 public:
     FileDescriptor() = default;
-    FileDescriptor(int desc) : desc(desc) {};
+    FileDescriptor(fd_t desc) : desc(desc) {};
 
     virtual ~FileDescriptor() = default;
-    virtual int fd() const { return desc; }
+    virtual fd_t fd() const { return desc; }
 
     virtual int read(void* dest, int size) {
-        return ::read(desc, dest, size);
+        return ::_read(desc, dest, size);
     }
 
     virtual int write(const void* buff, int size) {
-        return ::write(desc, buff, size);
+        return ::_write(desc, buff, size);
     }
 
     virtual uint8_t readByte() {
         char byte[1] = {0};
 
-        ::read(desc, byte, 1);
+        ::_read(desc, byte, 1);
 
         return byte[0];
     }
 
     virtual int writeByte(uint8_t b) {
         char byte[1] = {(char)b};
-        return ::write(desc, byte, 1);
+        return ::_write(desc, byte, 1);
     }
 
     virtual std::string readString(int size) {
         std::string ret;
         ret.reserve(size);
 
-        ret.resize(::read(desc, (char*)ret.data(), size));
+        ret.resize(::_read(desc, (char*)ret.data(), size));
 
         return ret;
     }
 
     virtual int writeString(const std::string buff) {
-        return ::write(desc, buff.c_str(), buff.size());
+        return ::_write(desc, buff.c_str(), buff.size());
     }
 
     operator int() const {

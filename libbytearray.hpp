@@ -52,10 +52,6 @@ public:
         return *this;
     }
 
-    bool operator==(ByteArray& obj) const {
-        return buf_size == obj.buf_size && !memcmp(buffer, obj.buffer, buf_size);
-    }
-
     void resize(size_t new_size) {
         char* new_buffer = new char[new_size];
 
@@ -135,3 +131,7 @@ public:
         return buffer[index];
     }
 };
+
+bool operator==(ByteArray& obj, ByteArray& obj2) {
+    return obj.size() == obj2.size() && !memcmp(obj.c_str(), obj2.c_str(), obj.size());
+}

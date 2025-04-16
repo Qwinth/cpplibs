@@ -522,12 +522,12 @@ public:
         int64_t rsize = ::recv(desc, buffer, size, 0);
 
         if (rsize < 0 || (!rsize && is_blocking())) {
-            int _errno = errno;
+            int __errno = errno;
             errno = preverrno;
             rsize = 0;
 
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
-            if (!((_errno == EAGAIN || _errno == EWOULDBLOCK) && !is_blocking())) close();
+            if (!((__errno == EAGAIN || __errno == EWOULDBLOCK) && !is_blocking())) close();
         }
 
         if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();

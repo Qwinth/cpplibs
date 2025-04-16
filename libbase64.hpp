@@ -5,6 +5,11 @@
 #include <cstdint>
 #include <algorithm>
 
+#ifdef _WIN32
+#include "windowsHeader.hpp"
+#endif
+
+
 class Base64 {
     std::string enctable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 

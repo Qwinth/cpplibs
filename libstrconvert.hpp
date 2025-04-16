@@ -2,6 +2,8 @@
 #include <string>
 #include <codecvt>
 #include <locale>
+#include <cuchar>
+
 
 #ifndef _WIN32
 std::wstring str2wstr(const std::string& utf8Str) {
@@ -34,10 +36,7 @@ std::wstring str2wstr(const std::string& string)
 
 std::string wstr2str(const std::wstring& wide_string)
 {
-    if (wide_string.empty())
-    {
-        return "";
-    }
+    if (wide_string.empty()) return "";
 
     const auto size_needed = WideCharToMultiByte(CP_UTF8, 0, &wide_string.at(0), (int)wide_string.size(), nullptr, 0, nullptr, nullptr);
     if (size_needed <= 0)
@@ -58,6 +57,14 @@ std::string u8tostr(std::u8string str) {
 
 std::u8string strtou8(std::string str) {
     return (char8_t*)str.c_str();
+}
+#else
+std::string u8tostr(std::string str) { // stub
+    return str;
+}
+
+std::string strtou8(std::string str) { // stub
+    return str;
 }
 #endif
 
