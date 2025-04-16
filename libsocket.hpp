@@ -424,10 +424,7 @@ public:
     }
 
     int64_t send(char ch) {
-        char chbuf[1];
-        chbuf[0] = ch;
-
-        return send(chbuf, 1);
+        return send(&ch, 1);
     }
 
     int64_t sendall(const void* data, int64_t size) {
