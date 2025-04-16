@@ -3,7 +3,11 @@
 
 #ifdef __linux__
 #include <unistd.h>
-typedef SOCKET int;
+typedef int fd_t;
+
+#define _read(fd, dest, size) read(fd, dest, size)
+#define _write(fd, src, size) write(fd, src, size)
+
 #elif _WIN32
 #include <io.h>
 typedef SOCKET fd_t;
