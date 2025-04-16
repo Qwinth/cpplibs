@@ -1,4 +1,4 @@
-// version 1.1-c1
+// version 1.1-c2
 #pragma once
 #include <string>
 #include <cmath>
@@ -29,10 +29,12 @@ namespace string_math {
         double num_value;
 
         bool pow_seq;
+        bool good;
 
         MathToken() {};
         MathToken(std::string str, TokenType type) : value(str), type(type) {}
         MathToken(double num) : num_value(num), type(NUMBER) {}
+        MathToken(bool good) : good(good) {}
     };
 
     using math_vars = std::map<std::string, double>;
@@ -43,6 +45,10 @@ namespace string_math {
     //         std::cout << "token type: " << i.type << " value: " << ((i.type == NUMBER) ? std::to_string(i.num_value) : i.value) << std::endl;
     //     }
     // }
+
+    bool is_index(math_tokens tokens, int64_t index) {
+        return index >= 0 && index < tokens.size();
+    }
 
     bool is_operator(MathToken token) {
         return token.type == UNARY_MINUS || token.type == POWER || token.type == MUL || token.type == DIV || token.type == PLUS || token.type == MINUS;
@@ -60,7 +66,7 @@ namespace string_math {
     bool is_pow_seq(math_tokens& tokens, int64_t i) {
         int64_t power_count = 0;
 
-        for (; i < tokens.size(); i++) {
+        for (; i + 1 < tokens.size(); i++) {
             if (tokens[i].type != UNARY_MINUS && tokens[i].type != NUMBER && tokens[i].type != POWER && tokens[i].type != EXPRESSION) break;
             else if ((tokens[i].type == NUMBER || tokens[i].type == EXPRESSION) && tokens[i + 1].type == POWER) power_count++;
         }
@@ -78,8 +84,6 @@ namespace string_math {
     void __math_set_vars(math_tokens& tokens, math_vars& vars) {
         for (auto& i : tokens) if (vars.find(i.value) != vars.end()) i = vars.at(i.value);
     }
-
-    double solve(std::string, std::map<std::string, double> = {{"p", M_PI}, {"e", M_E}});
 
     std::string __parse_number(std::string& string, int64_t& pos) {
         std::string ret;
@@ -147,10 +151,10 @@ namespace string_math {
     }
 
     void __math_preprocess(math_tokens& tokens) {
-        for (int64_t i = 0; i < tokens.size(); i++)
-        if (tokens[i].type == MINUS && (!i || is_operator(tokens[i - 1]))) tokens[i].type = UNARY_MINUS;            
+        for (int64_t i = 0; is_index(tokens, i); i++)
+        if (tokens[i].type == MINUS && (!i || is_index(tokens, i - 1) && is_operator(tokens[i - 1]))) tokens[i].type = UNARY_MINUS;
 
-        for (int64_t i = 0; i < tokens.size(); i++) {         
+        for (int64_t i = 0; is_index(tokens, i); i++) {
             if (tokens[i].type == POWER) tokens[i].pow_seq = false;
 
             else if (is_pow_seq(tokens, i)) {
@@ -163,13 +167,15 @@ namespace string_math {
         }
     }
 
+    double solve(std::string, std::map<std::string, double> = { {"p", 3.14}, {"e", 2.71} });
+
     double __math_calculate(math_tokens& tokens, int priority, math_vars vars) {
         if (!tokens.size()) return 0;
         if (priority == tokenPriority[NUMBER]) return tokens.front().num_value;
 
         int64_t curPriorOps = 0;
 
-        for (int64_t i = 0; i < tokens.size(); i++)
+        for (int64_t i = 0; is_index(tokens, i); i++)
         if (tokenPriority.at(tokens[i].type) == priority) curPriorOps++;
 
         for (int64_t i = 0; i < tokens.size(); i++) {
@@ -181,14 +187,14 @@ namespace string_math {
                     curPriorOps--;
                 }
 
-                else if (tokens[i].type == UNARY_MINUS && tokens[i + 1].type == NUMBER && !is_pow_exp(tokens, i + 1, false)) {
+                else if (tokens[i].type == UNARY_MINUS && is_index(tokens, i + 1) && tokens[i + 1].type == NUMBER && !is_pow_exp(tokens, i + 1, false)) {
                     tokens[i] = -tokens[i + 1].num_value;
                     tokens.erase(tokens.begin() + i + 1);
 
                     curPriorOps--;
                 }
 
-                else if (tokens[i].type == UNARY_MINUS && tokens[i - 1].type == NUMBER && !is_pow_exp(tokens, i - 1, true)) {
+                else if (tokens[i].type == UNARY_MINUS && is_index(tokens, i - 1) && tokens[i - 1].type == NUMBER && !is_pow_exp(tokens, i - 1, true)) {
                     tokens[i] = -tokens[i - 1].num_value;
                     tokens.erase(tokens.begin() + i - 1);
 
@@ -196,7 +202,7 @@ namespace string_math {
                     curPriorOps--;
                 }
 
-                else if (tokens[i].type == UNARY_MINUS && tokens[i + 1].type == UNARY_MINUS) {
+                else if (tokens[i].type == UNARY_MINUS && is_index(tokens, i + 1) && tokens[i + 1].type == UNARY_MINUS) {
                     tokens.erase(tokens.begin() + i + 1);
                     tokens.erase(tokens.begin() + i);
 
@@ -204,7 +210,7 @@ namespace string_math {
                     curPriorOps -= 2;
                 }
 
-                else if (tokens[i].type == POWER && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                else if (tokens[i].type == POWER && is_index(tokens, i - 1) && tokens[i - 1].type == NUMBER && is_index(tokens, i + 1) && tokens[i + 1].type == NUMBER) {
                     double op1 = tokens[i - 1].num_value;
                     double op2 = tokens[i + 1].num_value;
 
@@ -222,7 +228,7 @@ namespace string_math {
                     tokens[i] = pow(op1, op2);
                 }
 
-                else if (tokens[i].type == MUL && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                else if (tokens[i].type == MUL && is_index(tokens, i - 1) && tokens[i - 1].type == NUMBER && is_index(tokens, i + 1) && tokens[i + 1].type == NUMBER) {
                     double op1 = tokens[i - 1].num_value;
                     double op2 = tokens[i + 1].num_value;
                     
@@ -235,7 +241,7 @@ namespace string_math {
                     tokens[i] = op1 * op2;
                 }
 
-                else if (tokens[i].type == DIV && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                else if (tokens[i].type == DIV && is_index(tokens, i - 1) && tokens[i - 1].type == NUMBER && is_index(tokens, i + 1) && tokens[i + 1].type == NUMBER) {
                     double op1 = tokens[i - 1].num_value;
                     double op2 = tokens[i + 1].num_value;
                     
@@ -248,7 +254,7 @@ namespace string_math {
                     tokens[i] = op1 / op2;
                 }
 
-                else if (tokens[i].type == PLUS && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                else if (tokens[i].type == PLUS && is_index(tokens, i - 1) && tokens[i - 1].type == NUMBER && is_index(tokens, i + 1) && tokens[i + 1].type == NUMBER) {
                     double op1 = tokens[i - 1].num_value;
                     double op2 = tokens[i + 1].num_value;
                     
@@ -261,7 +267,7 @@ namespace string_math {
                     tokens[i] = op1 + op2;
                 }
 
-                else if (tokens[i].type == MINUS && tokens[i - 1].type == NUMBER && tokens[i + 1].type == NUMBER) {
+                else if (tokens[i].type == MINUS && is_index(tokens, i - 1) && tokens[i - 1].type == NUMBER && is_index(tokens, i + 1) && tokens[i + 1].type == NUMBER) {
                     double op1 = tokens[i - 1].num_value;
                     double op2 = tokens[i + 1].num_value;
                     
