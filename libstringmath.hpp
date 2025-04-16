@@ -48,7 +48,7 @@ namespace string_math {
         return token.type == UNARY_MINUS || token.type == POWER || token.type == MUL || token.type == DIV || token.type == PLUS || token.type == MINUS;
     }
 
-    bool is_pow_exp(math_tokens& tokens, ssize_t i, bool invert) {
+    bool is_pow_exp(math_tokens& tokens, int64_t i, bool invert) {
         if (i + 2 >= tokens.size()) return false;
         else if (invert && i - 2 < 0) return false;
 
@@ -57,8 +57,8 @@ namespace string_math {
         return tokens[i].type == NUMBER && tokens[i + 1].type == POWER;
     }
 
-    bool is_pow_seq(math_tokens& tokens, ssize_t i) {
-        ssize_t power_count = 0;
+    bool is_pow_seq(math_tokens& tokens, int64_t i) {
+        int64_t power_count = 0;
 
         for (; i < tokens.size(); i++) {
             if (tokens[i].type != UNARY_MINUS && tokens[i].type != NUMBER && tokens[i].type != POWER && tokens[i].type != EXPRESSION) break;
@@ -68,7 +68,7 @@ namespace string_math {
         return power_count > 1;
     }
 
-    ssize_t get_pow_seq_end(math_tokens& tokens, ssize_t i) {
+    int64_t get_pow_seq_end(math_tokens& tokens, int64_t i) {
         for (; i < tokens.size(); i++)
         if (tokens[i].type != UNARY_MINUS && tokens[i].type != NUMBER && tokens[i].type != POWER && tokens[i].type != EXPRESSION) break;
 
@@ -81,7 +81,7 @@ namespace string_math {
 
     double solve(std::string, std::map<std::string, double> = {{"p", M_PI}, {"e", M_E}});
 
-    std::string __parse_number(std::string& string, ssize_t& pos) {
+    std::string __parse_number(std::string& string, int64_t& pos) {
         std::string ret;
 
         for (; pos < string.size(); pos++) {
@@ -95,9 +95,9 @@ namespace string_math {
         return ret;
     }
 
-    std::string __parse_expression(std::string& string, ssize_t& pos) {
+    std::string __parse_expression(std::string& string, int64_t& pos) {
         std::string ret;
-        ssize_t brackets = 0;
+        int64_t brackets = 0;
 
         for (; pos < string.size(); pos++) {
             char ch = string[pos];
@@ -114,7 +114,7 @@ namespace string_math {
         return ret;
     }
 
-    std::string __parse_undefined(std::string& string, ssize_t& pos) {
+    std::string __parse_undefined(std::string& string, int64_t& pos) {
         std::string ret;
 
         for (; pos < string.size() && isalpha(string[pos]); pos++) ret += string[pos];
@@ -131,7 +131,7 @@ namespace string_math {
 
         math_tokens tokens;
 
-        for (ssize_t i = 0; i < string.size(); i++) {
+        for (int64_t i = 0; i < string.size(); i++) {
             char ch = string[i];
 
             if (isdigit(ch)) tokens.push_back(std::stod(__parse_number(string, i)));
@@ -147,10 +147,10 @@ namespace string_math {
     }
 
     void __math_preprocess(math_tokens& tokens) {
-        for (ssize_t i = 0; i < tokens.size(); i++)
+        for (int64_t i = 0; i < tokens.size(); i++)
         if (tokens[i].type == MINUS && (!i || is_operator(tokens[i - 1]))) tokens[i].type = UNARY_MINUS;            
 
-        for (ssize_t i = 0; i < tokens.size(); i++) {         
+        for (int64_t i = 0; i < tokens.size(); i++) {         
             if (tokens[i].type == POWER) tokens[i].pow_seq = false;
 
             else if (is_pow_seq(tokens, i)) {
@@ -167,12 +167,12 @@ namespace string_math {
         if (!tokens.size()) return 0;
         if (priority == tokenPriority[NUMBER]) return tokens.front().num_value;
 
-        ssize_t curPriorOps = 0;
+        int64_t curPriorOps = 0;
 
-        for (ssize_t i = 0; i < tokens.size(); i++)
+        for (int64_t i = 0; i < tokens.size(); i++)
         if (tokenPriority.at(tokens[i].type) == priority) curPriorOps++;
 
-        for (ssize_t i = 0; i < tokens.size(); i++) {
+        for (int64_t i = 0; i < tokens.size(); i++) {
             
             if (tokenPriority.at(tokens[i].type) == priority) {
                 if (tokens[i].type == EXPRESSION) {
