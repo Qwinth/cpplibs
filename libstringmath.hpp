@@ -167,7 +167,7 @@ namespace string_math {
         }
     }
 
-    double solve(std::string, std::map<std::string, double> = { {"p", 3.14}, {"e", 2.71} });
+    double solve(std::string, std::map<std::string, double> = { {"p", M_PI}, {"e", M_E} });
 
     double __math_calculate(math_tokens& tokens, int priority, math_vars vars) {
         if (!tokens.size()) return 0;
