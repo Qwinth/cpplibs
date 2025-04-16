@@ -41,7 +41,7 @@ public:
     }
 
     virtual int writeByte(uint8_t b) {
-        return ::_write(desc, &byte, 1);
+        return ::_write(desc, &b, 1);
     }
 
     virtual std::string readString(int size) {
