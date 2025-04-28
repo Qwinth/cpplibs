@@ -399,6 +399,8 @@ public:
         socket_param_table[new_socket].sock_af = socket_param_table[desc].sock_af;
         socket_param_table[new_socket].sock_type = socket_param_table[desc].sock_type;
         socket_param_table[new_socket].n_links = 0;
+        socket_param_table[new_socket].raddress = sockaddr_in_to_SocketAddress(client);
+        socket_param_table[new_socket].laddress = socket_param_table[desc].laddress;
 
         return new_socket;
     }

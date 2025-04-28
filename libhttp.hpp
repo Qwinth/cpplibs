@@ -298,6 +298,8 @@ private:
         vector_string temp_head = split(head_body.front(), "\r\n", 1);
         vector_string head = split(temp_head.front(), " ");
 
+        while (head.size() > 2) head.erase(head.end());
+
         ret.setVersion(head.front());
         ret.setCode(stoi(head.back()));
         ret.setBody(head_body.back());
@@ -386,26 +388,26 @@ private:
         std::map<std::string, std::string> endpointParams;
     };
 
-    HTTPMultipartFormData parse_http_multipart_form_data(std::string data, std::string boundary) {
-        HTTPMultipartFormData ret;
+    // HTTPMultipartFormData parse_http_multipart_form_data(std::string data, std::string boundary) {
+    //     HTTPMultipartFormData ret;
 
-        vector_string parts = split(data, "--" + boundary);
+    //     vector_string parts = split(data, "--" + boundary);
 
-        if (parts.size()) parts.pop_back();
+    //     if (parts.size()) parts.pop_back();
 
-        for (std::string& i : parts) {
-            vector_string head = split(i, "\r\n\r\n", 1);
-            vector_string part_headers = split(head.front(), "\r\n");
+    //     for (std::string& i : parts) {
+    //         vector_string head = split(i, "\r\n\r\n", 1);
+    //         vector_string part_headers = split(head.front(), "\r\n");
 
-            for (std::string& i : part_headers) {
-                vector_string header_temp = split(i, ": ", 1);
+    //         for (std::string& i : part_headers) {
+    //             vector_string header_temp = split(i, ": ", 1);
 
-                ret.headers[header_temp.front()] = parse_http_header_params(header_temp.back());
-            }
+    //             ret.headers[header_temp.front()] = parse_http_header_params(header_temp.back());
+    //         }
 
-            if (!findHeaderParam("form-data", ret.headers.at("Content-Disposition")).valid) throw std::runtime_error("parse_http_multipart_form_data(): only requests supported");
-        }
-    }
+    //         if (!findHeaderParam("form-data", ret.headers.at("Content-Disposition")).valid) throw std::runtime_error("parse_http_multipart_form_data(): only requests supported");
+    //     }
+    // }
 
     class HTTPEndpointServer {
         Socket server_socket;

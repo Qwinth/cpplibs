@@ -8,6 +8,7 @@
 #include <utility>
 #include <sstream>
 #include <fstream>
+#include <cctype>
 
 #include "libstrmanip.hpp"
 #include "libunicodeseq.hpp"
@@ -204,7 +205,13 @@ class Json {
         for (; startpos < str.size(); startpos++) if (str[startpos] > 32) break;
 
         return startpos;
-    } 
+    }
+
+    size_t findNextToken(std::string& str, size_t pos) {
+        for (; pos < str.size(); pos++) if (!std::isalpha(str[pos])) break;
+
+        return pos;
+    }
 
     std::pair<JsonNode, size_t> parseAny(std::string& str, size_t pos) {
         if (str[pos] == '"') return parseString(str, pos);
@@ -215,7 +222,7 @@ class Json {
         else if (str[pos] == '{') return parseObject(str, pos);
         else if (!str.size()) return { {}, pos };
 
-        return { {}, pos + 4 };
+        return { {}, findNextToken(str, pos) - 1 };
     }
 
     std::pair<JsonNode, size_t> parseString(std::string& str, size_t pos) {
@@ -330,7 +337,7 @@ class Json {
                 i = tmp.second;
 
                 if (iskey == false && (tmp.first.type != JSONSTRING && tmp.first.type != JSONNONE)) { throw std::runtime_error("Syntax error: value must be a string"); }
-                if (iskey && isvalue) { throw std::runtime_error("Syntax error: expected comma"); }
+                if (iskey && isvalue) { throw std::runtime_error("Syntax error: expected comma at pos " + std::to_string(i)); }
                 if (iskey) isvalue = true;
                 iskey = true;
             }

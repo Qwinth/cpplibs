@@ -3,7 +3,7 @@
 #include <sstream>
 #include <iomanip>
 
-std::string urlDecode(std::string SRC) {
+std::string uriDecode(std::string SRC) {
     std::string ret;
     char ch;
     int ii;
@@ -24,7 +24,7 @@ std::string urlDecode(std::string SRC) {
     return (ret);
 }
 
-std::string urlEncode(std::string value) {
+std::string uriEncode(std::string value) {
     std::ostringstream escaped;
     escaped.fill('0');
     escaped << std::hex;

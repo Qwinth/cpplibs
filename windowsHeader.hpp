@@ -1,6 +1,8 @@
 #pragma once
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
+#ifndef _WINDOWS_
+
+#ifdef _MSC_VER
 #define NOMINMAX
 
 #define M_E		2.7182818284590452354	/* e */
@@ -18,8 +20,9 @@
 #define M_SQRT1_2	0.70710678118654752440	/* 1/sqrt(2) */
 
 typedef long ssize_t;
+#endif
 
-#ifndef _WINDOWS_
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 #endif

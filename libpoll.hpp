@@ -51,6 +51,14 @@ public:
         poll_mtx.unlock();
     }
 
+    void removeAllDescriptors() {
+        fds.clear();
+    }
+
+    std::vector<pollfd>& getDescriptors() {
+        return fds;
+    }
+
     pollEvents poll(int timeout = -1) {
         poll_mtx.lock();
 
