@@ -7,7 +7,6 @@
 #include "libbytearray.hpp"
 
 namespace udtp {
-
     struct __udtp_param_seq {
         std::string param;
         bool is_named;

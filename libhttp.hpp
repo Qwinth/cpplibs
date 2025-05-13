@@ -409,7 +409,7 @@ private:
     //     }
     // }
 
-    class HTTPEndpointServer {
-        Socket server_socket;
-    };
+    // class HTTPEndpointServer {
+    //     Socket server_socket;
+    // };
 };

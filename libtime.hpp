@@ -6,17 +6,17 @@
 #ifdef _WIN32
 #include <windows.h>
 
-// void usleep(__int64 usec) { 
-//     HANDLE timer; 
-//     LARGE_INTEGER ft; 
+void usleep(__int64 usec) { 
+    HANDLE timer; 
+    LARGE_INTEGER ft; 
 
-//     ft.QuadPart = -(10*usec);
+    ft.QuadPart = -(10*usec);
 
-//     timer = CreateWaitableTimer(NULL, TRUE, NULL); 
-//     SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0); 
-//     WaitForSingleObject(timer, INFINITE); 
-//     CloseHandle(timer); 
-// }
+    timer = CreateWaitableTimer(NULL, TRUE, NULL); 
+    SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0); 
+    WaitForSingleObject(timer, INFINITE); 
+    CloseHandle(timer); 
+}
 
 int clock_gettime(int, struct timespec *spec)      //C-file part
 {  __int64 wintime; GetSystemTimeAsFileTime((FILETIME*)&wintime);
@@ -95,22 +95,22 @@ namespace Time {
         usleep(sleep_time);
     }
 
-    FileDescriptor fd_timer(double interval, TimeFraction frac = MICROSECONDS, ClockType clock = SYSTEM_CLOCK) {
-        FileDescriptor fd = timerfd_create(clock, 0);
+    // FileDescriptor fd_timer(double interval, TimeFraction frac = MICROSECONDS, ClockType clock = SYSTEM_CLOCK) {
+    //     FileDescriptor fd = timerfd_create(clock, 0);
 
-        double time = time_cast(interval, frac, SECONDS);
+    //     double time = time_cast(interval, frac, SECONDS);
 
-        long time_sec = time;
-        long time_nsec = time_cast(time - time_sec, SECONDS, NANOSECONDS);
+    //     long time_sec = time;
+    //     long time_nsec = time_cast(time - time_sec, SECONDS, NANOSECONDS);
 
-        itimerspec tspec{0};
-        tspec.it_value.tv_sec = time_sec;
-        tspec.it_value.tv_nsec = time_nsec;
-        tspec.it_interval.tv_sec = time_sec;
-        tspec.it_interval.tv_nsec = time_nsec;
+    //     itimerspec tspec{0};
+    //     tspec.it_value.tv_sec = time_sec;
+    //     tspec.it_value.tv_nsec = time_nsec;
+    //     tspec.it_interval.tv_sec = time_sec;
+    //     tspec.it_interval.tv_nsec = time_nsec;
 
-        timerfd_settime(fd, 0, &tspec, nullptr);
+    //     timerfd_settime(fd, 0, &tspec, nullptr);
 
-        return fd;
-    }
+    //     return fd;
+    // }
 }
