@@ -81,7 +81,7 @@ public:
                     n_events++;
                 }
 
-                if (n_events == num_events) break;
+                if (n_events >= num_events) break;
             }
         }
 

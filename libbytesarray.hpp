@@ -7,46 +7,46 @@
 
 #include "libbase64.hpp"
 
-class ByteArray {
+class BytesArray {
     char* buffer = nullptr;
     size_t buf_size = 0;
 
     Base64 base64;
 
-    void copy(const ByteArray& obj) {
+    void copy(const BytesArray& obj) {
         resize(obj.buf_size);
 
         std::memcpy(buffer, obj.buffer, obj.buf_size);
     }
 
-    void swap(ByteArray& obj) {
+    void swap(BytesArray& obj) {
         std::swap(buffer, obj.buffer);
         std::swap(buf_size, obj.buf_size);
     }
 public:
 
-    ByteArray() {}
-    ByteArray(const char* new_data, size_t new_size) {
+    BytesArray() {}
+    BytesArray(const char* new_data, size_t new_size) {
         set(new_data, new_size);
     }
 
-    ByteArray(std::string data) {
+    BytesArray(std::string data) {
         fromString(data);
     }
 
-    ByteArray(const ByteArray& obj) { copy(obj); }
-    ByteArray(ByteArray&& obj) { swap(obj); }
-    ~ByteArray() {
+    BytesArray(const BytesArray& obj) { copy(obj); }
+    BytesArray(BytesArray&& obj) { swap(obj); }
+    ~BytesArray() {
         delete[] buffer;
     }
 
-    ByteArray& operator=(const ByteArray& obj) {
+    BytesArray& operator=(const BytesArray& obj) {
         copy(obj);
 
         return *this;
     }
 
-    ByteArray& operator=(ByteArray&& obj) {
+    BytesArray& operator=(BytesArray&& obj) {
         swap(obj);
 
         return *this;
@@ -71,7 +71,7 @@ public:
         std::memcpy(buffer + old_size, new_data, size);
     }
 
-    void append(const ByteArray& obj) {
+    void append(const BytesArray& obj) {
         append(obj.c_str(), obj.size());
     }
 
@@ -81,7 +81,7 @@ public:
         std::memcpy(buffer, new_data, new_size);
     }
 
-    void set(const ByteArray& obj) {
+    void set(const BytesArray& obj) {
         resize(obj.size());
 
         std::memcpy(buffer, obj.c_str(), obj.size());
@@ -101,11 +101,11 @@ public:
         set((const char*)data.c_str(), data.size());
     }
 
-    ByteArray toBase64() {
+    BytesArray toBase64() {
         return base64.encodeString(toString());
     }
 
-    ByteArray fromBase64() {
+    BytesArray fromBase64() {
         return base64.decodeString(toString());
     }
 
@@ -132,6 +132,6 @@ public:
     }
 };
 
-bool operator==(ByteArray& obj, ByteArray& obj2) {
+bool operator==(BytesArray& obj, BytesArray& obj2) {
     return obj.size() == obj2.size() && !memcmp(obj.c_str(), obj2.c_str(), obj.size());
 }

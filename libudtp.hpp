@@ -4,7 +4,7 @@
 #include <map>
 #include <algorithm>
 #include "libstrmanip.hpp"
-#include "libbytearray.hpp"
+#include "libbytesarray.hpp"
 
 namespace udtp {
     struct __udtp_param_seq {
@@ -95,7 +95,7 @@ namespace udtp {
 
     class UDTPPacket {
         std::vector<UDTPHeader> headers;
-        ByteArray data;
+        BytesArray data;
 
         bool null;
     public:
@@ -139,11 +139,11 @@ namespace udtp {
             return true;
         }
 
-        ByteArray getData() {
+        BytesArray getData() {
             return data;
         }
 
-        void setData(ByteArray _data) {
+        void setData(BytesArray _data) {
             data = _data;
         }
 
@@ -187,7 +187,7 @@ namespace udtp {
         return packet;
     }
 
-    UDTPPacket parse(ByteArray data) {
+    UDTPPacket parse(BytesArray data) {
         return parse(data.toString());
     }
 

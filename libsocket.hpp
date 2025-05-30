@@ -53,7 +53,7 @@ typedef int socklen_t;
 #include "libuuid4.hpp"
 #include "libmsgpacket.hpp"
 #include "libfd.hpp"
-#include "libbytearray.hpp"
+#include "libbytesarray.hpp"
 #include "libpoll.hpp"
 
 struct SocketAddress {
@@ -101,7 +101,7 @@ void callback_handler(FileDescriptor fd) {
 }
 
 struct SocketData {
-    ByteArray buffer;
+    BytesArray buffer;
     SocketAddress addr;
 };
 
@@ -368,7 +368,7 @@ public:
     }
 #endif
 
-    void listen(int clients) {
+    void listen(int clients = 0) {
         if (::listen(desc, clients) == INVALID_SOCKET) throw GETSOCKETERRNO();
     }
 
@@ -421,7 +421,7 @@ public:
         return send(data.c_str(), data.size());
     }
 
-    int64_t send(ByteArray data) {
+    int64_t send(BytesArray data) {
         return send(data.c_str(), data.size());
     }
 
@@ -454,7 +454,7 @@ public:
         return sendall(data.c_str(), data.size());
     }
 
-    int64_t sendall(ByteArray data) {
+    int64_t sendall(BytesArray data) {
         return sendall(data.c_str(), data.size());
     }
 
@@ -477,7 +477,7 @@ public:
         return sendmsg(data.c_str(), data.size());
     }
 
-    int64_t sendmsg(ByteArray data) {
+    int64_t sendmsg(BytesArray data) {
         return sendmsg(data.c_str(), data.size());
     }
 

@@ -5,7 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <functional>
-#include "libbytearray.hpp"
+#include "libbytesarray.hpp"
 
 template<typename T>
 class RingBuffer {
