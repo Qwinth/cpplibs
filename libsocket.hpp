@@ -269,7 +269,7 @@ public:
     }
 
     bool is_opened() const {
-        return socket_param_table[desc].opened;
+        return socket_param_table.find(desc) != socket_param_table.end() && socket_param_table[desc].opened;
     }
 
     void connect(std::string ipaddr, uint16_t port) {

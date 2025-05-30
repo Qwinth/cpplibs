@@ -6,24 +6,24 @@
 #include "libstrmanip.hpp"
 #include "libbytesarray.hpp"
 
-namespace udtp {
-    struct __udtp_param_seq {
+namespace udxp {
+    struct __udxp_param_seq {
         std::string param;
         bool is_named;
     };
 
-    class UDTPHeader {
+    class UDXPHeader {
         std::string name;
 
         vector_string positionalParams;
         std::map<std::string, vector_string> namedParams;
 
-        std::vector<__udtp_param_seq> paramSeq;
+        std::vector<__udxp_param_seq> paramSeq;
 
         bool null;
     public:
-        UDTPHeader() {}
-        UDTPHeader(bool _null) : null(_null) {}
+        UDXPHeader() {}
+        UDXPHeader(bool _null) : null(_null) {}
 
         std::string getName() {
             return name;
@@ -41,6 +41,11 @@ namespace udtp {
             return namedParams.find(param) != namedParams.end();
         }
 
+        std::string getParam(int index) {
+            if (index < 0 || index >= positionalParams.size()) return {};
+            return positionalParams[index];
+        }
+
         vector_string getNamedParam(std::string param) {
             auto it = namedParams.find(param);
 
@@ -50,8 +55,7 @@ namespace udtp {
         }
 
         std::string operator[](int index) {
-            if (index < 0 || index >= positionalParams.size()) return {};
-            return positionalParams[index];
+            return getParam(index);
         }
 
         vector_string operator[](std::string key) {
@@ -88,30 +92,30 @@ namespace udtp {
             return null;
         }
 
-        std::vector<__udtp_param_seq> __get_param_seq() {
+        std::vector<__udxp_param_seq> __get_param_seq() {
             return paramSeq;
         }
     };
 
-    class UDTPPacket {
-        std::vector<UDTPHeader> headers;
+    class UDXPPacket {
+        std::vector<UDXPHeader> headers;
         BytesArray data;
 
         bool null;
     public:
-        UDTPPacket() {}
-        UDTPPacket(bool _null) : null(_null) {}
+        UDXPPacket() {}
+        UDXPPacket(bool _null) : null(_null) {}
 
-        std::vector<UDTPHeader> getHeaders() {
+        std::vector<UDXPHeader> getHeaders() {
             return headers;
         }
 
-        void addHeader(UDTPHeader header) {
+        void addHeader(UDXPHeader header) {
             headers.push_back(header);
         }
 
         void addHeader(std::string name, vector_string params) {
-            UDTPHeader header;
+            UDXPHeader header;
             header.setName(name);
             
             for (auto i : params) header.addParam(i);
@@ -133,7 +137,7 @@ namespace udtp {
             }
         }
 
-        UDTPHeader findHeader(std::string name) {
+        UDXPHeader findHeader(std::string name) {
             for (auto i : headers) if (i.getName() == name) return i;
 
             return true;
@@ -160,10 +164,10 @@ namespace udtp {
         return head.find('[') != head.npos && head.find(']') != head.npos;
     }
 
-    UDTPPacket parse(std::string text) {
+    UDXPPacket parse(std::string text) {
         if (!checkHeadFull(text)) return true;
 
-        UDTPPacket packet;
+        UDXPPacket packet;
 
         size_t startPos = text.find('[');
         size_t endPos = text.find(']');
@@ -187,7 +191,7 @@ namespace udtp {
         return packet;
     }
 
-    UDTPPacket parse(BytesArray data) {
+    UDXPPacket parse(BytesArray data) {
         return parse(data.toString());
     }
 
@@ -200,9 +204,9 @@ namespace udtp {
         return ret;
     }
 
-    std::string __dump_header_params(UDTPHeader header) {
+    std::string __dump_header_params(UDXPHeader header) {
         std::string ret;
-        std::vector<__udtp_param_seq> seq = header.__get_param_seq();
+        std::vector<__udxp_param_seq> seq = header.__get_param_seq();
 
         for (auto i : seq) {
             ret += i.param;
@@ -217,7 +221,7 @@ namespace udtp {
         return ret;
     }
 
-    std::string dump(UDTPPacket packet) {
+    std::string dump(UDXPPacket packet) {
         std::string ret;
 
         if (packet.IsNull()) return {};
