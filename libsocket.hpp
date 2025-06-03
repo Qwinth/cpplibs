@@ -258,14 +258,15 @@ public:
 #endif
         if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
+        param_id = uuid4();
+
         socket_param_table[desc].opened = true;
         socket_param_table[desc].working = true;
-        param_id = socket_param_table[desc].param_id = uuid4();
+        socket_param_table[desc].param_id = param_id;
         socket_param_table[desc].sock_af = _af;
         socket_param_table[desc].sock_type = _type;
         socket_param_table[desc].close_on_disconnect = true;
         socket_param_table[desc].n_links = 1;
-
         // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
     }
 
@@ -403,6 +404,7 @@ public:
 
         socket_param_table[new_socket].opened = true;
         socket_param_table[new_socket].working = true;
+        socket_param_table[new_socket].param_id = uuid4();
         socket_param_table[new_socket].sock_af = socket_param_table[desc].sock_af;
         socket_param_table[new_socket].sock_type = socket_param_table[desc].sock_type;
         socket_param_table[new_socket].close_on_disconnect = true;
