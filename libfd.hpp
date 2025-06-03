@@ -57,7 +57,7 @@ public:
         return ::_write(desc, buff.c_str(), buff.size());
     }
 
-    operator int() const {
+    virtual operator int() const {
         return desc;
     }
 };

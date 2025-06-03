@@ -30,6 +30,8 @@ namespace udxp {
         }
 
         void setName(std::string _name) {
+            setNull(false);
+
             name = _name;
         }
 
@@ -63,6 +65,8 @@ namespace udxp {
         }
 
         void addNamedParam(std::string key, vector_string value) {
+            setNull(false);
+
             for (auto i : value) namedParams[key].push_back(i);
             paramSeq.push_back({key, true});
         }
@@ -72,6 +76,8 @@ namespace udxp {
         }
 
         void addParam(std::string param) {
+            setNull(false);
+
             if (param.find('=') != std::string::npos) {
                 vector_string tmp = split(param, '=');
 
@@ -111,6 +117,8 @@ namespace udxp {
         }
 
         void addHeader(UDXPHeader header) {
+            setNull(false);
+
             headers.push_back(header);
         }
 
@@ -120,14 +128,19 @@ namespace udxp {
             
             for (auto i : params) header.addParam(i);
 
-            headers.push_back(header);
+            addHeader(header);
+        }
+
+        void addHeader(std::string name, std::string params) {
+            vector_string param_tmp = split(params, ',');
+
+            addHeader(name, param_tmp);
         }
 
         void addHeader(std::string header) {
             vector_string header_tmp = split(header, ':', 1);
-            vector_string param_tmp = split(header_tmp.back(), ',');
 
-            addHeader(header_tmp.front(), param_tmp);
+            addHeader(header_tmp.front(), header_tmp.back());
         }
 
         void removeHeader(std::string name) {
@@ -148,6 +161,8 @@ namespace udxp {
         }
 
         void setData(BytesArray _data) {
+            setNull(false);
+
             data = _data;
         }
 
@@ -172,15 +187,17 @@ namespace udxp {
         size_t startPos = text.find('[');
         size_t endPos = text.find(']');
 
-        text.erase(startPos, 1);
+        if (startPos == std::string::npos || endPos == std::string::npos) return true;
 
-        replaceAll(text, "\r", "");
-        replaceAll(text, "\n", "");
+        text.erase(startPos, 1);
 
         vector_string tmp = split(text, ']');
 
         std::string head = tmp.front();
         packet.setData(tmp.back());
+
+        replaceAll(head, "\r", "");
+        replaceAll(head, "\n", "");
 
         vector_string headers_str = split(head, ';');
 

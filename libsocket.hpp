@@ -1,4 +1,4 @@
-// version 2.4-c1
+// version 2.5
 #pragma once
 #include <iostream>
 #include <string>
@@ -257,7 +257,7 @@ public:
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
         socket_param_table[desc].opened = true;
         param_id = socket_param_table[desc].param_id = uuid4();
@@ -276,8 +276,9 @@ public:
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
+        socket_param_table[desc].laddress = getsockname();
         socket_param_table[desc].raddress = sockaddr_in_to_SocketAddress(sock);
     }
 
@@ -290,7 +291,7 @@ public:
     void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
         socket_param_table[desc].laddress = sockaddr_in_to_SocketAddress(sock);
     }
@@ -315,7 +316,7 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getsockname(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::getsockname(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
@@ -323,25 +324,25 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getpeername(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::getpeername(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
     template<typename T>
         void setsockopt(int level, int optname, T& optval) {
     #ifdef _WIN32
-            if (::setsockopt(desc, level, optname, (char*)&optval, sizeof(T)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+            if (::setsockopt(desc, level, optname, (char*)&optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
     #elif __linux__
-            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == INVALID_SOCKET) throw GETSOCKETERRNO();
+            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
     #endif
         }
 
         template<typename T>
         int getsockopt(int level, int optname, T& optval, socklen_t size = sizeof(T)) const {
     #ifdef _WIN32
-            if (::getsockopt(desc, level, optname, (char*)&optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+            if (::getsockopt(desc, level, optname, (char*)&optval, &size) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
     #elif __linux__
-            if (::getsockopt(desc, level, optname, &optval, &size) == INVALID_SOCKET) throw GETSOCKETERRNO();
+            if (::getsockopt(desc, level, optname, &optval, &size) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
     #endif
             return size;
         }
@@ -369,7 +370,7 @@ public:
 #endif
 
     void listen(int clients = 0) {
-        if (::listen(desc, clients) == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (::listen(desc, clients) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
     }
 
     void setrecvtimeout(int seconds) {
@@ -393,7 +394,7 @@ public:
 
         FileDescriptor new_socket = ::accept(desc, (sockaddr*)&client, (socklen_t*)&c);
 
-        if (new_socket == INVALID_SOCKET) throw GETSOCKETERRNO();
+        if (new_socket == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
         socket_param_table[new_socket].opened = true;
         socket_param_table[new_socket].sock_af = socket_param_table[desc].sock_af;

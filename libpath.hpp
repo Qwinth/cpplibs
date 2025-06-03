@@ -13,6 +13,7 @@ class Path {
     std::string sysPathType;
 
     bool absPath;
+    bool dirPath;
     
     void clearPath() {
         replaceAll(source, "\\", "/");
@@ -52,6 +53,8 @@ class Path {
             absPath = false;
             sysPathType = "relative";
         }
+
+        dirPath = source.back() == '/' || source.back() == '\\';
     }
 
     void clear() {
@@ -123,6 +126,8 @@ public:
     }
 
     std::string toString() {
+        if (!pathObjects.size()) return "";
+
         std::string ret;
 
         if (absPath) {
@@ -132,7 +137,11 @@ public:
 
         for (std::string& i : pathObjects) if (i.size()) ret += i + ((sysPathType == "win") ? "\\" : "/");
 
-        if (ret != "/" && ret != toUpper(vol) + ":\\") ret.pop_back();
+        if (ret != "/" && ret != toUpper(vol) + ":\\") {
+            ret.pop_back();
+
+            if (dirPath) ret += (sysPathType == "win") ? "\\" : "/";
+        }
 
         return ret;
     }
