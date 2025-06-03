@@ -407,6 +407,8 @@ public:
     }
 
     int64_t send(const void* data, int64_t size) {
+        if (!is_opened()) return -1;
+
 #ifdef _WIN32
         return ::send(desc, (const char*)data, size, 0);
 #elif __linux__
