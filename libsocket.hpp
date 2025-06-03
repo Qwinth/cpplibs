@@ -1,4 +1,4 @@
-// version 2.5
+// version 2.5.3
 #pragma once
 #include <iostream>
 #include <string>
@@ -64,6 +64,7 @@ struct SocketAddress {
 };
 
 struct SocketParams {
+    std::atomic_bool working;
     std::atomic_bool opened;
     std::atomic_bool blocking;
 
@@ -81,6 +82,7 @@ struct SocketParams {
     std::thread callback_thread;
 
     std::atomic_bool callback_enabled;
+    std::atomic_bool close_on_disconnect;
     std::atomic_int n_links;
 };
 
@@ -153,10 +155,7 @@ public:
     Socket(int _af, int _type) { open(_af, _type); }
 
     Socket(FileDescriptor fd) {
-        if (!is_socket_fd(fd)) {
-            std::cerr << "Error: Socket(int fd): Non-socket fd" << std::endl;
-            throw INVALID_SOCKET;
-        }
+        if (!is_socket_fd(fd)) throw std::runtime_error("Socket(int fd): Non-socket or closed fd" );
 
 #ifdef _WIN32
         WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -233,7 +232,7 @@ public:
         return *this;
     }
 
-    void setblocking(bool _blocking) {
+    void setBlocking(bool _blocking) {
     #ifdef __linux__
         if (_blocking) fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) & ~O_NONBLOCK);
         else fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) | O_NONBLOCK);
@@ -260,9 +259,11 @@ public:
         if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
         socket_param_table[desc].opened = true;
+        socket_param_table[desc].working = true;
         param_id = socket_param_table[desc].param_id = uuid4();
         socket_param_table[desc].sock_af = _af;
         socket_param_table[desc].sock_type = _type;
+        socket_param_table[desc].close_on_disconnect = true;
         socket_param_table[desc].n_links = 1;
 
         // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
@@ -270,6 +271,10 @@ public:
 
     bool is_opened() const {
         return socket_param_table.find(desc) != socket_param_table.end() && socket_param_table[desc].opened;
+    }
+
+    bool is_working() const {
+        return socket_param_table.find(desc) != socket_param_table.end() && socket_param_table[desc].working;
     }
 
     void connect(std::string ipaddr, uint16_t port) {
@@ -397,8 +402,10 @@ public:
         if (new_socket == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
 
         socket_param_table[new_socket].opened = true;
+        socket_param_table[new_socket].working = true;
         socket_param_table[new_socket].sock_af = socket_param_table[desc].sock_af;
         socket_param_table[new_socket].sock_type = socket_param_table[desc].sock_type;
+        socket_param_table[new_socket].close_on_disconnect = true;
         socket_param_table[new_socket].n_links = 0;
         socket_param_table[new_socket].raddress = sockaddr_in_to_SocketAddress(client);
         socket_param_table[new_socket].laddress = socket_param_table[desc].laddress;
@@ -407,8 +414,6 @@ public:
     }
 
     int64_t send(const void* data, int64_t size) {
-        if (!is_opened()) return -1;
-
 #ifdef _WIN32
         return ::send(desc, (const char*)data, size, 0);
 #elif __linux__
@@ -439,7 +444,7 @@ public:
             int64_t n = send(((char*)data) + ptr, size - ptr);
 
             if (n < 0) {
-                close();
+                if (isCloseOnDisconnect()) close();
                 break;
             }
 
@@ -529,7 +534,7 @@ public:
             rsize = 0;
 
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
-            if (!((__errno == EAGAIN || __errno == EWOULDBLOCK) && !is_blocking())) close();
+            if (!((__errno == EAGAIN || __errno == EWOULDBLOCK) && !is_blocking()) && isCloseOnDisconnect()) close();
         }
 
         if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
@@ -548,7 +553,7 @@ public:
         if (!mtx_bypass) socket_param_table[desc].recvMtx.lock();
 
         do ret.buffer.append(recv(size - ret.buffer.size(), true).buffer);
-        while (ret.buffer.size() < size && is_opened());
+        while (ret.buffer.size() < size && is_working());
 
         if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
 
@@ -627,6 +632,14 @@ public:
         return socket_param_table[desc].raddress;
     }
 
+    bool isCloseOnDisconnect() {
+        return socket_param_table[desc].close_on_disconnect;
+    }
+
+    void setCloseOnDisconnect(bool __close) {
+        socket_param_table[desc].close_on_disconnect = __close;
+    }
+
     void registerCallback(std::function<void(FileDescriptor, short)> callback) {
         socket_param_table[desc].callback_enabled = true;
         socket_param_table[desc].callback_func = callback;
@@ -638,15 +651,25 @@ public:
         socket_param_table[desc].callback_thread.join();
         socket_param_table[desc].callback_func = nullptr;
     }
+    
+    void shutdown() {
+#ifdef _WIN32
+        ::shutdown(desc, SD_BOTH);
+#elif __linux__
+        ::shutdown(desc, SHUT_RDWR);
+#endif
+
+        socket_param_table[desc].working = false;
+    }
 
     void close() {
         // std::cout << "Closing fd: " << desc << std::endl;
+        if (is_working()) shutdown();
+        
 #ifdef _WIN32
-        ::shutdown(desc, SD_BOTH);
         ::closesocket(desc);
         ::WSACleanup();
 #elif __linux__
-        ::shutdown(desc, SHUT_RDWR);
         ::close(desc);
 #endif
 
