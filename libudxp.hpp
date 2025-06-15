@@ -7,6 +7,8 @@
 #include "libbytesarray.hpp"
 
 namespace udxp {
+    bool error_flag = false;
+
     struct __udxp_param_seq {
         std::string param;
         bool is_named;
@@ -180,14 +182,22 @@ namespace udxp {
     }
 
     UDXPPacket parse(std::string text) {
-        if (!checkHeadFull(text)) return true;
+        error_flag = false;
+
+        if (!checkHeadFull(text)) {
+            error_flag = true;
+            return true;
+        }
 
         UDXPPacket packet;
 
         size_t startPos = text.find('[');
         size_t endPos = text.find(']');
 
-        if (startPos == std::string::npos || endPos == std::string::npos) return true;
+        if (startPos == std::string::npos || endPos == std::string::npos) {
+            error_flag = true;
+            return true;
+        }
 
         text.erase(startPos, 1);
 
