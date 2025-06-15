@@ -144,6 +144,8 @@ public:
 
         std::string findParamArg(std::string paramName, std::string argName) {
             for (auto i : paramArgs) if (i.paramName == paramName && i.argName == argName) return i.argExtraValue;
+            
+            return {};
         }
 
         bool IsNull() {
