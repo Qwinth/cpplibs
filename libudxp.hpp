@@ -191,7 +191,7 @@ namespace udxp {
 
         text.erase(startPos, 1);
 
-        vector_string tmp = split(text, ']');
+        vector_string tmp = split(text, ']', 1);
 
         std::string head = tmp.front();
         packet.setData(tmp.back());

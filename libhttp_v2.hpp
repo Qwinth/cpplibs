@@ -30,6 +30,8 @@ namespace http {
     std::map<int, std::string> strcode = { {200, "OK"}, {206, "Partial Content"}, {400, "Bad Request"}, {403, "Forbidden"}, {404, "Not Found"}, {500, "Internal Server Error"}, {501, "Not Implemented"} };
     vector_string implMethods = { "GET", "HEAD", "POST", "PUT" };
 
+    bool error_flag = false;
+
     struct __http_param_seq {
         std::string paramName;
         bool is_named;
@@ -352,12 +354,29 @@ public:
     // }
 
     HTTPRequest parseHttpRequest(std::string str) {
+        error_flag = false;
         HTTPRequest ret;
 
         vector_string head_body = split(str, "\r\n\r\n", 1);
 
+        if (head_body.size() < 2) {
+            error_flag = true;
+            return {};
+        }
+
         vector_string temp_head = split(head_body.front(), "\r\n", 1);
+
+        if (temp_head.size() < 2) {
+            error_flag = true;
+            return {};
+        }
+
         vector_string head = split(temp_head.front(), " ");
+
+        if (head.size() < 3 || vector_indexOf(implMethods, head[0]) < 0 || split(head[2], "/").front() != "HTTP") {
+            error_flag = true;
+            return {};
+        }
 
         ret.setMethod((HTTPMethod)vector_indexOf(implMethods, head[0]));
         ret.setURI(head[1]);
@@ -372,6 +391,11 @@ public:
             
             vector_string header_temp = split(i, ": ", 1);
 
+            if (header_temp.size() < 2 || !header_temp.back().size()) {
+                error_flag = true;
+                return {};
+            }
+
             if (header_temp.front() == "User-Agent") ret.addHeaderRaw(header_temp.front(), header_temp.back());
             else ret.addHeader(header_temp.front(), header_temp.back());
         }
@@ -380,14 +404,31 @@ public:
     }
 
     HTTPResponse parseHttpResponse(std::string str) {
+        error_flag = false;
         HTTPResponse ret;
 
         vector_string head_body = split(str, "\r\n\r\n", 1);
 
+        if (head_body.size() < 2) {
+            error_flag = true;
+            return {};
+        }
+
         vector_string temp_head = split(head_body.front(), "\r\n", 1);
+
+        if (temp_head.size() < 2) {
+            error_flag = true;
+            return {};
+        }
+
         vector_string head = split(temp_head.front(), " ");
 
         while (head.size() > 2) head.erase(head.end());
+
+        if (split(head.front(), "/").front() != "HTTP" || !std::all_of(head.back().begin(), head.back().end(), ::isdigit)) {
+            error_flag = true;
+            return {};
+        }
 
         ret.setVersion(head.front());
         ret.setCode(stoi(head.back()));
@@ -400,10 +441,18 @@ public:
 
             vector_string header_temp = split(i, ": ", 1);
 
+            if (header_temp.size() < 2 || !header_temp.back().size()) {
+                error_flag = true;
+                return {};
+            }
+
             if (header_temp.front() == "last-modified") ret.addHeaderRaw(header_temp.front(), header_temp.back());
             else if (header_temp.front() == "date") ret.addHeaderRaw(header_temp.front(), header_temp.back());
+            else if (header_temp.back().front() == '{') ret.addHeaderRaw(header_temp.front(), header_temp.back());
             else ret.addHeader(header_temp.front(), header_temp.back());
         }
+
+        error_flag = false;
 
         return ret;
     }
