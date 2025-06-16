@@ -1,4 +1,4 @@
-// version 2.5.3-c1
+// version 2.5.4
 #pragma once
 #include <iostream>
 #include <string>
@@ -379,11 +379,18 @@ public:
         if (::listen(desc, clients) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
     }
 
-    void setrecvtimeout(int seconds) {
+    void setrecvtimeout(int64_t millis) {
         timeval timeout;
-        timeout.tv_sec = seconds;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = millis / 1000;
+        timeout.tv_usec = (millis % 1000) * 1000;
         setsockopt(SOL_SOCKET, SO_RCVTIMEO, timeout);
+    }
+
+    void setsendtimeout(int64_t millis) {
+        timeval timeout;
+        timeout.tv_sec = millis / 1000;
+        timeout.tv_usec = (millis % 1000) * 1000;
+        setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeout);
     }
 
     void setreuseaddr(int i) {
