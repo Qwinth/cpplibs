@@ -1,4 +1,4 @@
-// version 2.5.4
+// version 2.5.4-c1
 #pragma once
 #include <iostream>
 #include <string>
@@ -483,6 +483,8 @@ public:
         packet.write(data, size);
 
         int64_t retsize = sendall(packet);
+
+        packet.clear();
 
         return retsize;
     }
