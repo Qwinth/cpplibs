@@ -95,6 +95,8 @@ public:
         void addNamedParam(std::string key, std::string value) {
             for (auto i : value) namedParams[key].push_back(i);
             paramSeq.push_back({key, true});
+
+            setNull(false);
         }
 
         void addParam(std::string param) {
@@ -112,6 +114,8 @@ public:
             else {
                 positionalParams.push_back(param);
                 paramSeq.push_back({param, false});
+
+                setNull(false);
             }
 
             if (param_arg.size()) {
@@ -228,6 +232,7 @@ public:
 
         HTTPHeader findHeader(std::string name) {
             for (auto i : headers) if (i.getName() == name) return i;
+            std::cout << "here2" << std::endl;
 
             return true;
         }
@@ -294,7 +299,11 @@ public:
         HTTPHeader findHeader(std::string name) {
             for (auto i : headers) if (i.getName() == name) return i;
 
-            return true;
+            HTTPHeader ret;
+            ret.setNull(true);
+
+            std::cout << "here1" << std::endl;
+            return ret;
         }
 
         HTTPHeaders& getHeaders() {
