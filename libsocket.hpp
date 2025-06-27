@@ -455,8 +455,10 @@ public:
 
             int __errno = GETSOCKETERRNO();
 
-            if (n < 0 && __errno != EAGAIN && __errno != EWOULDBLOCK) {
+            if (n < 0) {
                 GETSOCKETERRNO() = preverrno;
+
+                if (__errno == EAGAIN || __errno == EWOULDBLOCK) break;
 
                 if (isCloseOnDisconnect()) close();
                 else shutdown();
