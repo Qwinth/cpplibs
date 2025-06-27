@@ -1,4 +1,4 @@
-// version 2.5.4-c1
+// version 2.5.4-c2
 #pragma once
 #include <iostream>
 #include <string>
@@ -448,11 +448,15 @@ public:
 
     int64_t sendall(const void* data, int64_t size) {
         int64_t ptr = 0;
+        int preverrno = GETSOCKETERRNO();
 
         while (ptr < size) {
             int64_t n = send(((char*)data) + ptr, size - ptr);
 
-            if (n < 0) {
+            int __errno = GETSOCKETERRNO();
+            GETSOCKETERRNO() = preverrno;
+
+            if (n < 0 && __errno != EAGAIN && __errno != EWOULDBLOCK) {
                 if (isCloseOnDisconnect()) close();
                 else shutdown();
                 break;
@@ -534,19 +538,20 @@ public:
     SocketData recv(int64_t size, bool mtx_bypass = false) {
         char* buffer = new char[size];
 
-        int preverrno = errno;
+        int preverrno = GETSOCKETERRNO();
 
         if (!mtx_bypass) socket_param_table[desc].recvMtx.lock();
 
         int64_t rsize = ::recv(desc, buffer, size, 0);
 
         if (rsize < 0 || (!rsize && is_blocking())) {
-            int __errno = errno;
-            errno = preverrno;
+            int __errno = GETSOCKETERRNO();
+            GETSOCKETERRNO() = preverrno;
+
             rsize = 0;
 
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
-            if (!((__errno == EAGAIN || __errno == EWOULDBLOCK) && !is_blocking())) {
+            if (__errno != EAGAIN && __errno != EWOULDBLOCK) {
                 if (isCloseOnDisconnect()) close();
                 else shutdown();
             }
