@@ -426,7 +426,7 @@ public:
 #ifdef _WIN32
         return ::send(desc, (const char*)data, size, 0);
 #elif __linux__
-        return ::send(desc, data, size, MSG_NOSIGNAL);
+        return ::send(desc, data, size, MSG_NOSIGNAL | MSG_DONTWAIT);
 #endif
     }
 
