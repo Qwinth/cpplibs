@@ -1,4 +1,4 @@
-// version 2.5.4-c2
+// version 2.5.4-c3
 #pragma once
 #include <iostream>
 #include <string>
@@ -454,9 +454,10 @@ public:
             int64_t n = send(((char*)data) + ptr, size - ptr);
 
             int __errno = GETSOCKETERRNO();
-            GETSOCKETERRNO() = preverrno;
 
             if (n < 0 && __errno != EAGAIN && __errno != EWOULDBLOCK) {
+                GETSOCKETERRNO() = preverrno;
+
                 if (isCloseOnDisconnect()) close();
                 else shutdown();
                 break;
