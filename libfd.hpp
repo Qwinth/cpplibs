@@ -3,7 +3,7 @@
 
 #ifdef __linux__
 #include <unistd.h>
-typedef int fd_t;
+typedef uint16_t fd_t;
 
 #define _read(fd, dest, size) read(fd, dest, size)
 #define _write(fd, src, size) write(fd, src, size)

@@ -1,4 +1,4 @@
-// version 2.5.4-c4
+// version 2.5.4-c5
 #pragma once
 #include <iostream>
 #include <string>
@@ -10,9 +10,7 @@
 #include <cstdint>
 #include <memory>
 #include <map>
-#include <functional>
 #include <atomic>
-#include <thread>
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -24,6 +22,7 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #define GETSOCKETERRNO() (WSAGetLastError())
+#define GETSOCKETERRNOMSG() ("WSAError: " + std::to_string(GETSOCKETERRNO()))
 #define MSG_CONFIRM 0
 #define _MSG_WAITALL 0
 
@@ -47,6 +46,7 @@ typedef int socklen_t;
 #define INVALID_SOCKET -1
 #define _MSG_WAITALL MSG_WAITALL
 #define GETSOCKETERRNO() (errno)
+#define GETSOCKETERRNOMSG() (strerror(GETSOCKETERRNO()))
 #endif
 
 #include "libstrmanip.hpp"
@@ -63,7 +63,7 @@ struct SocketAddress {
     std::string str() const { return strformat("%s:%d", ip.c_str(), port); }
 };
 
-struct SocketParams {
+struct SocketTable {
     std::atomic_bool working;
     std::atomic_bool opened;
     std::atomic_bool blocking;
@@ -78,29 +78,10 @@ struct SocketParams {
 
     std::mutex recvMtx;
 
-    std::function<void(FileDescriptor, short)> callback_func;
-    std::thread callback_thread;
-
-    std::atomic_bool callback_enabled;
-    std::atomic_bool close_on_disconnect;
     std::atomic_int n_links;
 };
 
-std::map<FileDescriptor, SocketParams> socket_param_table;
-
-void callback_handler(FileDescriptor fd) {
-    SocketParams& params = socket_param_table[fd];
-
-    Poller poller;
-    poller.addDescriptor(fd, POLLIN | POLLPRI);
-
-    while (params.callback_enabled) {
-        auto ev = poller.poll();
-        params.callback_func(fd, ev.front().event);
-    }
-
-    poller.removeDescriptor(fd);
-}
+std::map<FileDescriptor, SocketTable> socket_table;
 
 struct SocketData {
     BytesArray buffer;
@@ -109,23 +90,6 @@ struct SocketData {
 
 class Socket : public FileDescriptor {
     std::string param_id;
-#ifdef _WIN32
-    WSADATA wsa;
-#endif
-    bool is_socket_fd(int fd) const {
-    #ifdef _WIN32
-        int optval;
-        int optlen = sizeof(optval);
-
-        int result = ::getsockopt(fd, SOL_SOCKET, SO_TYPE, (char*)&optval, &optlen);
-
-        return (result == 0);
-    #else
-        struct stat statbuf;
-        if (fstat(fd, &statbuf) == -1) return false;
-        return S_ISSOCK(statbuf.st_mode);
-    #endif
-    }
 
     bool is_IPv4(std::string ipaddr) const {
         replaceAll(ipaddr, ".", "");
@@ -150,84 +114,80 @@ class Socket : public FileDescriptor {
     }
 
     SocketAddress sockaddr_in_to_SocketAddress(sockaddr_in addr) const { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
+
 public:
     Socket() {}
     Socket(int _af, int _type) { open(_af, _type); }
 
     Socket(FileDescriptor fd) {
-        if (!is_socket_fd(fd)) throw std::runtime_error("Socket(int fd): Non-socket or closed fd" );
+        if (socket_table.find(fd) == socket_table.end()) throw std::runtime_error("Socket(int fd): Non-socket or closed fd" );
 
-#ifdef _WIN32
-        WSAStartup(MAKEWORD(2, 2), &wsa);
-#endif
         desc = fd;
-        param_id = socket_param_table[desc].param_id;
+        param_id = socket_table.at(desc).param_id;
 
-        socket_param_table[desc].n_links++;
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by constructor(FD) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by constructor(FD) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     Socket(const Socket& obj) {
         desc = obj.desc;
-        param_id = socket_param_table[desc].param_id;
+        param_id = socket_table.at(desc).param_id;
 
-        socket_param_table[desc].n_links++;
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by constructor(COPY) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by constructor(COPY) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     Socket(Socket&& obj) {
         std::swap(desc, obj.desc);
-        param_id = socket_param_table[desc].param_id;
+        param_id = socket_table.at(desc).param_id;
 
-        // std::cout << "Move container by constructor(MOVE) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        // std::cout << "Move container by constructor(MOVE) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     ~Socket() {
-        if (socket_param_table.find(desc) == socket_param_table.end() || socket_param_table[desc].param_id != param_id) return;
+        if (socket_table.find(desc) == socket_table.end() || socket_table.at(desc).param_id != param_id) return;
 
-        socket_param_table[desc].n_links--;
+        socket_table.at(desc).n_links--;
 
-        // std::cout << "Deleting container: " << this << ", Links: " << socket_param_table[desc].n_links << ", fd: " << desc << std::endl;
+        // std::cout << "Deleting container: " << this << ", Links: " << socket_table.at(desc).n_links << ", fd: " << desc << std::endl;
 
-        if (!socket_param_table[desc].n_links && !socket_param_table[desc].opened) {
-            if (socket_param_table[desc].callback_thread.joinable()) socket_param_table[desc].callback_thread.join();
-
-            socket_param_table.erase(desc);
+        if (!socket_table.at(desc).n_links && !socket_table.at(desc).opened) {
+            socket_table.erase(desc);
 
             // std::cout << "No containers for fd: " << desc << "! Removing socket param table for fd: " << desc << "." << std::endl;
-            // std::cout << "Socket param table size: " << socket_param_table.size() << std::endl;         
+            // std::cout << "Socket param table size: " << socket_table.size() << std::endl;         
         }
     }
 
     Socket& operator=(FileDescriptor fd) {
         desc = fd;
-        param_id = socket_param_table[desc].param_id;
+        param_id = socket_table.at(desc).param_id;
 
-        socket_param_table[desc].n_links++;
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by operator(FD) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by operator(FD) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
 
         return *this;
     }
 
     Socket& operator=(const Socket& obj) {
         desc = obj.desc;
-        param_id = socket_param_table[desc].param_id;
+        param_id = socket_table.at(desc).param_id;
 
-        socket_param_table[desc].n_links++;
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by operator(COPY) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by operator(COPY) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
 
         return *this;
     }
 
     Socket& operator=(Socket&& obj) {
         std::swap(desc, obj.desc);
-        param_id = socket_param_table[desc].param_id;
+        param_id = socket_table.at(desc).param_id;
 
-        // std::cout << "Move container by operator(MOVE) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        // std::cout << "Move container by operator(MOVE) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
 
         return *this;
     }
@@ -241,51 +201,52 @@ public:
         ioctlsocket(desc, FIONBIO, &__blocking);
     #endif
 
-        socket_param_table[desc].blocking = _blocking;
+        socket_table.at(desc).blocking = _blocking;
     }
 
     bool is_blocking() const {
 #ifdef __linux__
         return !(fcntl(desc, F_GETFL) & O_NONBLOCK);
 #elif _WIN32
-        return socket_param_table[desc].blocking;
+        return socket_table.at(desc).blocking;
 #endif
     }
 
     void open(int _af = AF_INET, int _type = SOCK_STREAM) {
 #ifdef _WIN32
+        WSAData wsa;
         WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
-        if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         param_id = uuid4();
 
-        socket_param_table[desc].opened = true;
-        socket_param_table[desc].working = true;
-        socket_param_table[desc].param_id = param_id;
-        socket_param_table[desc].sock_af = _af;
-        socket_param_table[desc].sock_type = _type;
-        socket_param_table[desc].close_on_disconnect = false;
-        socket_param_table[desc].n_links = 1;
-        // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_param_table[desc].n_links << ", container: " << this << std::endl;
+        socket_table.try_emplace(desc);
+        socket_table.at(desc).opened = true;
+        socket_table.at(desc).working = true;
+        socket_table.at(desc).param_id = param_id;
+        socket_table.at(desc).sock_af = _af;
+        socket_table.at(desc).sock_type = _type;
+        socket_table.at(desc).n_links = 1;
+        // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     bool is_opened() const {
-        return socket_param_table.find(desc) != socket_param_table.end() && socket_param_table[desc].opened;
+        return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).opened;
     }
 
     bool is_working() const {
-        return socket_param_table.find(desc) != socket_param_table.end() && socket_param_table[desc].working;
+        return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).working;
     }
 
     void connect(std::string ipaddr, uint16_t port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        socket_param_table[desc].laddress = getsockname();
-        socket_param_table[desc].raddress = sockaddr_in_to_SocketAddress(sock);
+        socket_table.at(desc).laddress = getsockname();
+        socket_table.at(desc).raddress = sockaddr_in_to_SocketAddress(sock);
     }
 
     void connect(std::string addr) {
@@ -297,9 +258,9 @@ public:
     void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        socket_param_table[desc].laddress = sockaddr_in_to_SocketAddress(sock);
+        socket_table.at(desc).laddress = sockaddr_in_to_SocketAddress(sock);
     }
 
     void bind(std::string addr) {
@@ -322,7 +283,7 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getsockname(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if (::getsockname(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
@@ -330,25 +291,25 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getpeername(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if (::getpeername(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
     template<typename T>
         void setsockopt(int level, int optname, T& optval) {
     #ifdef _WIN32
-            if (::setsockopt(desc, level, optname, (char*)&optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+            if (::setsockopt(desc, level, optname, (char*)&optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
-            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
     #endif
         }
 
         template<typename T>
         int getsockopt(int level, int optname, T& optval, socklen_t size = sizeof(T)) const {
     #ifdef _WIN32
-            if (::getsockopt(desc, level, optname, (char*)&optval, &size) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+            if (::getsockopt(desc, level, optname, (char*)&optval, &size) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
-            if (::getsockopt(desc, level, optname, &optval, &size) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+            if (::getsockopt(desc, level, optname, &optval, &size) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
     #endif
             return size;
         }
@@ -376,7 +337,7 @@ public:
 #endif
 
     void listen(int clients = 0) {
-        if (::listen(desc, clients) == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if (::listen(desc, clients) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
     }
 
     void setrecvtimeout(int64_t millis) {
@@ -407,17 +368,17 @@ public:
 
         FileDescriptor new_socket = ::accept(desc, (sockaddr*)&client, (socklen_t*)&c);
 
-        if (new_socket == INVALID_SOCKET) throw std::runtime_error(strerror(GETSOCKETERRNO()));
+        if (new_socket == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        socket_param_table[new_socket].opened = true;
-        socket_param_table[new_socket].working = true;
-        socket_param_table[new_socket].param_id = uuid4();
-        socket_param_table[new_socket].sock_af = socket_param_table[desc].sock_af;
-        socket_param_table[new_socket].sock_type = socket_param_table[desc].sock_type;
-        socket_param_table[new_socket].close_on_disconnect = false;
-        socket_param_table[new_socket].n_links = 0;
-        socket_param_table[new_socket].raddress = sockaddr_in_to_SocketAddress(client);
-        socket_param_table[new_socket].laddress = socket_param_table[desc].laddress;
+        socket_table.try_emplace(new_socket);
+        socket_table.at(new_socket).opened = true;
+        socket_table.at(new_socket).working = true;
+        socket_table.at(new_socket).param_id = uuid4();
+        socket_table.at(new_socket).sock_af = socket_table.at(desc).sock_af;
+        socket_table.at(new_socket).sock_type = socket_table.at(desc).sock_type;
+        socket_table.at(new_socket).raddress = sockaddr_in_to_SocketAddress(client);
+        socket_table.at(new_socket).laddress = socket_table.at(desc).laddress;
+        socket_table.at(new_socket).n_links = 0;
 
         return new_socket;
     }
@@ -448,20 +409,13 @@ public:
 
     int64_t sendall(const void* data, int64_t size) {
         int64_t ptr = 0;
-        int preverrno = GETSOCKETERRNO();
+        int preverrno = errno;
 
         while (ptr < size) {
             int64_t n = send(((char*)data) + ptr, size - ptr);
 
-            int __errno = GETSOCKETERRNO();
-
             if (n < 0) {
-                GETSOCKETERRNO() = preverrno;
-
-                if (__errno == EAGAIN || __errno == EWOULDBLOCK) break;
-
-                if (isCloseOnDisconnect()) close();
-                else shutdown();
+                errno = preverrno;
                 break;
             }
 
@@ -541,30 +495,24 @@ public:
     SocketData recv(int64_t size, bool mtx_bypass = false) {
         char* buffer = new char[size];
 
-        int preverrno = GETSOCKETERRNO();
+        int preverrno = errno;
 
-        if (!mtx_bypass) socket_param_table[desc].recvMtx.lock();
+        if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
 
         int64_t rsize = ::recv(desc, buffer, size, 0);
 
         if (rsize < 0 || (!rsize && is_blocking())) {
-            int __errno = GETSOCKETERRNO();
-            GETSOCKETERRNO() = preverrno;
-
+            errno = preverrno;
             rsize = 0;
 
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
-            if (__errno != EAGAIN && __errno != EWOULDBLOCK) {
-                if (isCloseOnDisconnect()) close();
-                else shutdown();
-            }
         }
 
-        if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
+        if (!mtx_bypass) socket_table.at(desc).recvMtx.unlock();
 
         SocketData data;
         data.buffer.set(buffer, rsize);
-        data.addr = socket_param_table[desc].raddress;
+        data.addr = socket_table.at(desc).raddress;
 
         delete[] buffer;
         return data;
@@ -573,31 +521,31 @@ public:
     SocketData recvall(int64_t size, bool mtx_bypass = false) {
         SocketData ret;
         
-        if (!mtx_bypass) socket_param_table[desc].recvMtx.lock();
+        if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
 
         do ret.buffer.append(recv(size - ret.buffer.size(), true).buffer);
         while (ret.buffer.size() < size && is_working());
 
-        if (!mtx_bypass) socket_param_table[desc].recvMtx.unlock();
+        if (!mtx_bypass) socket_table.at(desc).recvMtx.unlock();
 
-        ret.addr = socket_param_table[desc].raddress;
+        ret.addr = socket_table.at(desc).raddress;
 
         return ret;
     }
 
     SocketData recvmsg() {
-        socket_param_table[desc].recvMtx.lock();
+        socket_table.at(desc).recvMtx.lock();
 
         SocketData recvsize = recvall(sizeof(uint32_t), true);
 
         if (!recvsize.buffer.size()) {
-            socket_param_table[desc].recvMtx.unlock();
+            socket_table.at(desc).recvMtx.unlock();
             return {};
         }
 
         SocketData ret = recvall(ntohl(*(uint32_t*)recvsize.buffer.c_str()), true);
 
-        socket_param_table[desc].recvMtx.unlock();
+        socket_table.at(desc).recvMtx.unlock();
 
         return ret;
     }
@@ -648,31 +596,11 @@ public:
     }
 
     const SocketAddress localSocketAddress() const {
-        return socket_param_table[desc].laddress;
+        return socket_table.at(desc).laddress;
     }
 
     const SocketAddress remoteSocketAddress() const {
-        return socket_param_table[desc].raddress;
-    }
-
-    bool isCloseOnDisconnect() {
-        return socket_param_table[desc].close_on_disconnect;
-    }
-
-    void setCloseOnDisconnect(bool __close) {
-        socket_param_table[desc].close_on_disconnect = __close;
-    }
-
-    void registerCallback(std::function<void(FileDescriptor, short)> callback) {
-        socket_param_table[desc].callback_enabled = true;
-        socket_param_table[desc].callback_func = callback;
-        socket_param_table[desc].callback_thread = std::thread(callback_handler, desc);
-    }
-
-    void removeCallback() {
-        socket_param_table[desc].callback_enabled = false;
-        socket_param_table[desc].callback_thread.join();
-        socket_param_table[desc].callback_func = nullptr;
+        return socket_table.at(desc).raddress;
     }
     
     void shutdown() {
@@ -682,7 +610,7 @@ public:
         ::shutdown(desc, SHUT_RDWR);
 #endif
 
-        socket_param_table[desc].working = false;
+        socket_table.at(desc).working = false;
     }
 
     void close() {
@@ -696,7 +624,7 @@ public:
         ::close(desc);
 #endif
 
-        socket_param_table[desc].opened = false;
+        socket_table.at(desc).opened = false;
     }
 };
 
