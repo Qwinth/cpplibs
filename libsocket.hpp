@@ -387,7 +387,7 @@ public:
 #ifdef _WIN32
         return ::send(desc, (const char*)data, size, 0);
 #elif __linux__
-        return ::send(desc, data, size, MSG_NOSIGNAL | MSG_DONTWAIT);
+        return ::send(desc, data, size, MSG_NOSIGNAL);
 #endif
     }
 
@@ -417,6 +417,8 @@ public:
             if (n < 0) {
                 errno = preverrno;
                 break;
+
+                shutdown();
             }
 
             ptr += n;
@@ -505,6 +507,7 @@ public:
             errno = preverrno;
             rsize = 0;
 
+            shutdown();
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
         }
 
