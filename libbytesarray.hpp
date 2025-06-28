@@ -117,6 +117,10 @@ public:
         return buffer;
     }
 
+    char* data() {
+        return buffer;
+    }
+
     char front() const {
         return buffer[0];
     }

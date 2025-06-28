@@ -19,8 +19,6 @@
 #ifndef _WINSOCKAPI_
 #include <winsock2.h>
 
-#pragma comment(lib, "ws2_32.lib")
-
 #define GETSOCKETERRNO() (WSAGetLastError())
 #define GETSOCKETERRNOMSG() ("WSAError: " + std::to_string(GETSOCKETERRNO()))
 #define MSG_CONFIRM 0
@@ -42,8 +40,8 @@ typedef int socklen_t;
 #include <netdb.h>
 #include <fcntl.h>
 
-#define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
 #define _MSG_WAITALL MSG_WAITALL
 #define GETSOCKETERRNO() (errno)
 #define GETSOCKETERRNOMSG() (strerror(GETSOCKETERRNO()))
@@ -243,7 +241,7 @@ public:
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::connect(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if (::connect(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         socket_table.at(desc).laddress = getsockname();
         socket_table.at(desc).raddress = sockaddr_in_to_SocketAddress(sock);
@@ -258,7 +256,7 @@ public:
     void bind(std::string ipaddr, uint16_t port) {
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        if (::bind(desc, (sockaddr*)&sock, sizeof(sockaddr_in)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if (::bind(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         socket_table.at(desc).laddress = sockaddr_in_to_SocketAddress(sock);
     }
@@ -275,7 +273,7 @@ public:
 
         remoteHost = ::gethostbyname(name.c_str());
 
-        addr.s_addr = *(uint64_t*)remoteHost->h_addr_list[0];
+        addr.s_addr = *reinterpret_cast<uint32_t*>(remoteHost->h_addr_list[0]);
         return std::string(inet_ntoa(addr));
     }
 
@@ -283,7 +281,7 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getsockname(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if (::getsockname(desc, reinterpret_cast<sockaddr*>(&my_addr), &addrlen) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
@@ -291,25 +289,25 @@ public:
         sockaddr_in my_addr;
         socklen_t addrlen = sizeof(sockaddr_in);
 
-        if (::getpeername(desc, (sockaddr*)&my_addr, &addrlen) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if (::getpeername(desc, reinterpret_cast<sockaddr*>(&my_addr), &addrlen) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
         return sockaddr_in_to_SocketAddress(my_addr);
     }
 
     template<typename T>
         void setsockopt(int level, int optname, T& optval) {
     #ifdef _WIN32
-            if (::setsockopt(desc, level, optname, (char*)&optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+            if (::setsockopt(desc, level, optname, reinterpret_cast<char*>(&optval), sizeof(T)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
-            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+            if (::setsockopt(desc, level, optname, &optval, sizeof(T)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #endif
         }
 
         template<typename T>
         int getsockopt(int level, int optname, T& optval, socklen_t size = sizeof(T)) const {
     #ifdef _WIN32
-            if (::getsockopt(desc, level, optname, (char*)&optval, &size) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+            if (::getsockopt(desc, level, optname, reinterpret_cast<char*>(&optval), &size) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
-            if (::getsockopt(desc, level, optname, &optval, &size) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+            if (::getsockopt(desc, level, optname, &optval, &size) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #endif
             return size;
         }
@@ -337,7 +335,7 @@ public:
 #endif
 
     void listen(int clients = 0) {
-        if (::listen(desc, clients) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if (::listen(desc, clients) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     }
 
     void setrecvtimeout(int64_t millis) {
@@ -366,9 +364,9 @@ public:
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
 
-        FileDescriptor new_socket = ::accept(desc, (sockaddr*)&client, (socklen_t*)&c);
+        FileDescriptor new_socket = ::accept(desc, reinterpret_cast<sockaddr*>(&client), &c);
 
-        if (new_socket == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if (new_socket == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         socket_table.try_emplace(new_socket);
         socket_table.at(new_socket).opened = true;
@@ -385,7 +383,7 @@ public:
 
     int64_t send(const void* data, int64_t size) {
 #ifdef _WIN32
-        return ::send(desc, (const char*)data, size, 0);
+        return ::send(desc, reinterpret_cast<const char*>(data), size, 0);
 #elif __linux__
         return ::send(desc, data, size, MSG_NOSIGNAL);
 #endif
@@ -465,26 +463,33 @@ public:
     }
 
     int64_t send_file(std::ifstream& file) {
-        char* buffer = new char[256 * 1024];
+        BytesArray buffer;
+        buffer.resize(256 * 1024);
+
         int64_t size = 0;
 
         while (file.tellg() != -1) {
-            file.read(buffer, 256 * 1024);
-            size += send(buffer, file.gcount());
+            file.read(buffer.data(), 256 * 1024);
+            size += send(buffer.c_str(), file.gcount());
         }
 
-        delete[] buffer;
         return size;
     }
 
-    int64_t sendto(const char* buf, int64_t size, std::string ipaddr, uint16_t port) {
+    int64_t sendto(const void* buf, int64_t size, std::string ipaddr, uint16_t port) {
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
-        return ::sendto(desc, buf, size, MSG_CONFIRM, (sockaddr*)&sock, sizeof(sockaddr_in));
+#ifdef _WIN32
+        return ::sendto(desc, reinterpret_cast<const char*>(buf), size, MSG_CONFIRM, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in));
+#elif __linux__
+        return ::sendto(desc, buf, size, MSG_CONFIRM, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in));
+#endif
+
+        
     }
 
-    int64_t sendto(char* buf, int64_t size, SocketAddress addr) { return sendto(buf, size, addr.ip, addr.port); }
+    int64_t sendto(void* buf, int64_t size, SocketAddress addr) { return sendto(buf, size, addr.ip, addr.port); }
 
     int64_t sendto(std::string buf, std::string ipaddr, uint16_t port) { return sendto(buf.c_str(), buf.size(), ipaddr, port); }
     
@@ -494,12 +499,13 @@ public:
 
     int64_t sendto(SocketData data) { return sendto(data.buffer.c_str(), data.buffer.size(), data.addr.ip, data.addr.port); }
 
-    SocketData recv(int64_t size) {
-        char* buffer = new char[size];
+    SocketData recv(uint32_t size) {
+        BytesArray buffer;
+        buffer.resize(size);
 
         int preverrno = errno;
 
-        int64_t rsize = ::recv(desc, buffer, size, 0);
+        int64_t rsize = ::recv(desc, buffer.data(), size, 0);
 
         if (rsize < 0 || (!rsize && is_blocking())) {
             errno = preverrno;
@@ -510,14 +516,13 @@ public:
         }
 
         SocketData data;
-        data.buffer.set(buffer, rsize);
+        data.buffer.set(buffer.c_str(), rsize);
         data.addr = socket_table.at(desc).raddress;
 
-        delete[] buffer;
         return data;
     }
 
-    SocketData recvall(int64_t size, bool mtx_bypass = false) {
+    SocketData recvall(uint32_t size, bool mtx_bypass = false) {
         SocketData ret;
         
         if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
@@ -542,7 +547,7 @@ public:
             return {};
         }
 
-        SocketData ret = recvall(ntohl(*(uint32_t*)recvsize.buffer.c_str()), true);
+        SocketData ret = recvall(ntohl(*reinterpret_cast<const uint32_t*>(recvsize.buffer.c_str())), true);
 
         socket_table.at(desc).recvMtx.unlock();
 
@@ -564,30 +569,29 @@ public:
             size = 65536;
         }
 
-        char* buffer = new char[size];
+        BytesArray buffer;
+        buffer.resize(size);
 
         int preverrno = errno;
         int64_t rsize = 0;
 
-        if ((rsize = ::recvfrom(desc, buffer, size, _MSG_WAITALL, (sockaddr*)&sock, &len)) < 0 || errno == 104) {
+        if ((rsize = ::recvfrom(desc, buffer.data(), size, _MSG_WAITALL, reinterpret_cast<sockaddr*>(&sock), &len)) < 0 || errno == 104) {
             errno = preverrno;
 
-            delete[] buffer;
             return {};
         }
 
         SocketData data;
-        data.buffer.set(buffer, rsize);
+        data.buffer.set(buffer.c_str(), rsize);
         data.addr = sockaddr_in_to_SocketAddress(sock);
 
-        delete[] buffer;
         return data;
     }
 
     uint32_t tcpRecvAvailable() const {
         uint32_t bytes_available;
 #ifdef _WIN32
-        ioctlsocket(desc, FIONREAD, (unsigned long*)&bytes_available);
+        ioctlsocket(desc, FIONREAD, reinterpret_cast<unsigned long*>(&bytes_available));
 #else
         ioctl(desc, FIONREAD, &bytes_available);
 #endif
@@ -630,7 +634,7 @@ public:
 bool operator==(SocketAddress& arg1, SocketAddress& arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
 bool operator==(SocketData& arg1, SocketData& arg2) { return arg1.addr == arg2.addr && arg1.buffer == arg2.buffer; }
 bool operator==(Socket& arg1, Socket& arg2) { return arg1.fd() == arg2.fd(); }
-bool operator==(int fd, Socket& arg2) { return fd == arg2.fd(); }
+bool operator==(fd_t fd, Socket& arg2) { return fd == arg2.fd(); }
 
 bool operator!=(SocketAddress& arg1, SocketAddress& arg2) { return !(arg1 == arg2); }
 bool operator!=(SocketData& arg1, SocketData& arg2) { return !(arg1 == arg2); }
