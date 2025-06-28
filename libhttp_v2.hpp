@@ -232,7 +232,6 @@ public:
 
         HTTPHeader findHeader(std::string name) {
             for (auto i : headers) if (i.getName() == name) return i;
-            std::cout << "here2" << std::endl;
 
             return true;
         }
@@ -302,7 +301,6 @@ public:
             HTTPHeader ret;
             ret.setNull(true);
 
-            std::cout << "here1" << std::endl;
             return ret;
         }
 
