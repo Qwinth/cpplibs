@@ -416,9 +416,9 @@ public:
 
             if (n < 0) {
                 errno = preverrno;
-                break;
-
                 shutdown();
+
+                break;
             }
 
             ptr += n;
