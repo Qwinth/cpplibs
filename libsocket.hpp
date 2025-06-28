@@ -381,36 +381,36 @@ public:
         return new_socket;
     }
 
-    int64_t send(const void* data, int64_t size) {
+    int64_t send(const void* data, int64_t size, int flags = 0) {
 #ifdef _WIN32
-        return ::send(desc, reinterpret_cast<const char*>(data), size, 0);
+        return ::send(desc, reinterpret_cast<const char*>(data), size, flags);
 #elif __linux__
-        return ::send(desc, data, size, MSG_NOSIGNAL);
+        return ::send(desc, data, size, MSG_NOSIGNAL | flags);
 #endif
     }
 
-    int64_t send(std::string data) {
-        return send(data.c_str(), data.size());
+    int64_t send(std::string data, int flags = 0) {
+        return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(MsgPacket data) {
-        return send(data.c_str(), data.size());
+    int64_t send(MsgPacket data, int flags = 0) {
+        return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(BytesArray data) {
-        return send(data.c_str(), data.size());
+    int64_t send(BytesArray data, int flags = 0) {
+        return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(char ch) {
-        return send(&ch, 1);
+    int64_t send(char ch, int flags = 0) {
+        return send(&ch, 1, flags);
     }
 
-    int64_t sendall(const void* data, int64_t size) {
+    int64_t sendall(const void* data, int64_t size, int flags = 0) {
         int64_t ptr = 0;
         int preverrno = errno;
 
         while (ptr < size) {
-            int64_t n = send(((char*)data) + ptr, size - ptr);
+            int64_t n = send(((char*)data) + ptr, size - ptr, flags);
 
             if (n < 0) {
                 errno = preverrno;
@@ -425,16 +425,16 @@ public:
         return ptr;
     }
 
-    int64_t sendall(std::string data) {
-        return sendall(data.c_str(), data.size());
+    int64_t sendall(std::string data, int flags = 0) {
+        return sendall(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendall(MsgPacket data) {
-        return sendall(data.c_str(), data.size());
+    int64_t sendall(MsgPacket data, int flags = 0) {
+        return sendall(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendall(BytesArray data) {
-        return sendall(data.c_str(), data.size());
+    int64_t sendall(BytesArray data, int flags = 0) {
+        return sendall(data.c_str(), data.size(), flags);
     }
 
     int64_t sendmsg(const void* data, uint32_t size) {
