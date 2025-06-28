@@ -494,12 +494,10 @@ public:
 
     int64_t sendto(SocketData data) { return sendto(data.buffer.c_str(), data.buffer.size(), data.addr.ip, data.addr.port); }
 
-    SocketData recv(int64_t size, bool mtx_bypass = false) {
+    SocketData recv(int64_t size) {
         char* buffer = new char[size];
 
         int preverrno = errno;
-
-        if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
 
         int64_t rsize = ::recv(desc, buffer, size, 0);
 
@@ -510,8 +508,6 @@ public:
             shutdown();
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
         }
-
-        if (!mtx_bypass) socket_table.at(desc).recvMtx.unlock();
 
         SocketData data;
         data.buffer.set(buffer, rsize);
@@ -526,7 +522,7 @@ public:
         
         if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
 
-        do ret.buffer.append(recv(size - ret.buffer.size(), true).buffer);
+        do ret.buffer.append(recv(size - ret.buffer.size()).buffer);
         while (ret.buffer.size() < size && is_working());
 
         if (!mtx_bypass) socket_table.at(desc).recvMtx.unlock();
