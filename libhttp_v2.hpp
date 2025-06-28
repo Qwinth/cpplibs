@@ -211,7 +211,7 @@ public:
         }
 
         void removeHeader(std::string name) {
-            for (size_t i = 0; i < headers.size(); i++) if (headers[i].getName() == name) headers.erase(headers.begin() + i);
+            for (size_t i = 0; i < headers.size(); i++) if (toLower(headers[i].getName()) == toLower(name)) headers.erase(headers.begin() + i);
         }
 
         HTTPMethod getMethod() const {
@@ -231,7 +231,7 @@ public:
         }
 
         HTTPHeader findHeader(std::string name) {
-            for (auto i : headers) if (i.getName() == name) return i;
+            for (auto i : headers) if (toLower(i.getName()) == toLower(name)) return i;
 
             return true;
         }
@@ -280,7 +280,7 @@ public:
         }
 
         void removeHeader(std::string name) {
-            for (size_t i = 0; i < headers.size(); i++) if (headers[i].getName() == name) headers.erase(headers.begin() + i);
+            for (size_t i = 0; i < headers.size(); i++) if (toLower(headers[i].getName()) == toLower(name)) headers.erase(headers.begin() + i);
         }
 
         int getCode() const {
@@ -296,7 +296,7 @@ public:
         }
 
         HTTPHeader findHeader(std::string name) {
-            for (auto i : headers) if (i.getName() == name) return i;
+            for (auto i : headers) if (toLower(i.getName()) == toLower(name)) return i;
 
             HTTPHeader ret;
             ret.setNull(true);
