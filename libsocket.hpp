@@ -294,7 +294,7 @@ public:
     }
 
     template<typename T>
-        void setsockopt(int level, int optname, T& optval) {
+        void setsockopt(int level, int optname, T optval) {
     #ifdef _WIN32
             if (::setsockopt(desc, level, optname, reinterpret_cast<char*>(&optval), sizeof(T)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
