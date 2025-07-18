@@ -352,14 +352,6 @@ public:
         setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeout);
     }
 
-    void setreuseaddr(int i) {
-        setsockopt(SOL_SOCKET, SO_REUSEADDR, i);
-    }
-
-    void settcpnodelay(int i) {
-        setsockopt(IPPROTO_TCP, TCP_NODELAY, i);
-    }
-
     Socket accept() {
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
