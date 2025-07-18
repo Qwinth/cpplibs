@@ -181,7 +181,7 @@ namespace udxp {
         return head.find('[') != head.npos && head.find(']') != head.npos;
     }
 
-    UDXPPacket parse(std::string text) {
+    UDXPPacket parseUdxpPacket(std::string text) {
         error_flag = false;
 
         if (!checkHeadFull(text)) {
@@ -218,11 +218,11 @@ namespace udxp {
         return packet;
     }
 
-    UDXPPacket parse(BytesArray data) {
-        return parse(data.toString());
+    UDXPPacket parseUdxpPacket(BytesArray data) {
+        return parseUdxpPacket(data.toString());
     }
 
-    std::string __dump_header_params_value(vector_string values) {
+    std::string dumpHeaderParamsValue(vector_string values) {
         std::string ret;
 
         for (auto i : values) ret += i + "|";
@@ -231,14 +231,14 @@ namespace udxp {
         return ret;
     }
 
-    std::string __dump_header_params(UDXPHeader header) {
+    std::string dumpHeaderParams(UDXPHeader header) {
         std::string ret;
         std::vector<__udxp_param_seq> seq = header.__get_param_seq();
 
         for (auto i : seq) {
             ret += i.param;
 
-            if (i.is_named) ret += "=" + __dump_header_params_value(header[i.param]);
+            if (i.is_named) ret += "=" + dumpHeaderParamsValue(header[i.param]);
 
             ret += ",";
         }
@@ -248,14 +248,14 @@ namespace udxp {
         return ret;
     }
 
-    std::string dump(UDXPPacket packet) {
+    std::string dumpUdxpPacket(UDXPPacket packet) {
         std::string ret;
 
         if (packet.IsNull()) return {};
 
         ret += "[";
 
-        for (auto i : packet.getHeaders()) ret += i.getName() + ":" + __dump_header_params(i) + ";";
+        for (auto i : packet.getHeaders()) ret += i.getName() + ":" + dumpHeaderParams(i) + ";";
         ret.pop_back();
 
         ret += "]";
