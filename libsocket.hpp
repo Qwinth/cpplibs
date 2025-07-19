@@ -389,17 +389,19 @@ public:
 
         if (new_socket == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        std::lock_guard lck(socket_table_mtx);
+        {
+            std::lock_guard lck(socket_table_mtx);
 
-        socket_table.try_emplace(new_socket);
-        socket_table.at(new_socket).opened = true;
-        socket_table.at(new_socket).working = true;
-        socket_table.at(new_socket).param_id = uuid4();
-        socket_table.at(new_socket).sock_af = socket_table.at(desc).sock_af;
-        socket_table.at(new_socket).sock_type = socket_table.at(desc).sock_type;
-        socket_table.at(new_socket).raddress = sockaddr_in_to_SocketAddress(client);
-        socket_table.at(new_socket).laddress = socket_table.at(desc).laddress;
-        socket_table.at(new_socket).n_links = 0;
+            socket_table.try_emplace(new_socket);
+            socket_table.at(new_socket).opened = true;
+            socket_table.at(new_socket).working = true;
+            socket_table.at(new_socket).param_id = uuid4();
+            socket_table.at(new_socket).sock_af = socket_table.at(desc).sock_af;
+            socket_table.at(new_socket).sock_type = socket_table.at(desc).sock_type;
+            socket_table.at(new_socket).raddress = sockaddr_in_to_SocketAddress(client);
+            socket_table.at(new_socket).laddress = socket_table.at(desc).laddress;
+            socket_table.at(new_socket).n_links = 0;
+        }
 
         return new_socket;
     }
