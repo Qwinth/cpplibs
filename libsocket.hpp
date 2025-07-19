@@ -80,6 +80,7 @@ struct SocketTable {
 };
 
 std::map<FileDescriptor, SocketTable> socket_table;
+std::mutex socket_table_mtx;
 
 struct SocketData {
     BytesArray buffer;
@@ -118,6 +119,8 @@ public:
     Socket(int _af, int _type) { open(_af, _type); }
 
     Socket(FileDescriptor fd) {
+        std::lock_guard lck(socket_table_mtx);
+
         if (socket_table.find(fd) == socket_table.end()) throw std::runtime_error("Socket(int fd): Non-socket or closed fd" );
 
         desc = fd;
@@ -129,6 +132,8 @@ public:
     }
 
     Socket(const Socket& obj) {
+        std::lock_guard lck(socket_table_mtx);
+
         desc = obj.desc;
         param_id = socket_table.at(desc).param_id;
 
@@ -138,6 +143,8 @@ public:
     }
 
     Socket(Socket&& obj) {
+        std::lock_guard lck(socket_table_mtx);
+
         std::swap(desc, obj.desc);
         param_id = socket_table.at(desc).param_id;
 
@@ -145,6 +152,8 @@ public:
     }
 
     ~Socket() {
+        std::lock_guard lck(socket_table_mtx);
+
         if (socket_table.find(desc) == socket_table.end() || socket_table.at(desc).param_id != param_id) return;
 
         socket_table.at(desc).n_links--;
@@ -160,6 +169,8 @@ public:
     }
 
     Socket& operator=(FileDescriptor fd) {
+        std::lock_guard lck(socket_table_mtx);
+
         desc = fd;
         param_id = socket_table.at(desc).param_id;
 
@@ -171,6 +182,8 @@ public:
     }
 
     Socket& operator=(const Socket& obj) {
+        std::lock_guard lck(socket_table_mtx);
+
         desc = obj.desc;
         param_id = socket_table.at(desc).param_id;
 
@@ -182,6 +195,8 @@ public:
     }
 
     Socket& operator=(Socket&& obj) {
+        std::lock_guard lck(socket_table_mtx);
+
         std::swap(desc, obj.desc);
         param_id = socket_table.at(desc).param_id;
 
@@ -191,6 +206,8 @@ public:
     }
 
     void setBlocking(bool _blocking) {
+        std::lock_guard lck(socket_table_mtx);
+
     #ifdef __linux__
         if (_blocking) fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) & ~O_NONBLOCK);
         else fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) | O_NONBLOCK);
@@ -206,6 +223,8 @@ public:
 #ifdef __linux__
         return !(fcntl(desc, F_GETFL) & O_NONBLOCK);
 #elif _WIN32
+        std::lock_guard lck(socket_table_mtx);
+
         return socket_table.at(desc).blocking;
 #endif
     }
@@ -218,6 +237,8 @@ public:
         if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         param_id = uuid4();
+        
+        std::lock_guard lck(socket_table_mtx);
 
         socket_table.try_emplace(desc);
         socket_table.at(desc).opened = true;
@@ -230,10 +251,14 @@ public:
     }
 
     bool is_opened() const {
+        std::lock_guard lck(socket_table_mtx);
+
         return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).opened;
     }
 
     bool is_working() const {
+        std::lock_guard lck(socket_table_mtx);
+
         return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).working;
     }
 
@@ -242,6 +267,8 @@ public:
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::connect(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
+
+        std::lock_guard lck(socket_table_mtx);
 
         socket_table.at(desc).laddress = getsockname();
         socket_table.at(desc).raddress = sockaddr_in_to_SocketAddress(sock);
@@ -257,6 +284,8 @@ public:
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::bind(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
+
+        std::lock_guard lck(socket_table_mtx);
 
         socket_table.at(desc).laddress = sockaddr_in_to_SocketAddress(sock);
     }
@@ -359,6 +388,8 @@ public:
         FileDescriptor new_socket = ::accept(desc, reinterpret_cast<sockaddr*>(&client), &c);
 
         if (new_socket == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
+
+        std::lock_guard lck(socket_table_mtx);
 
         socket_table.try_emplace(new_socket);
         socket_table.at(new_socket).opened = true;
@@ -507,6 +538,8 @@ public:
             // std::cout << "Call close() from recv() due to error or closed socket." << std::endl;
         }
 
+        std::lock_guard lck(socket_table_mtx);
+
         SocketData data;
         data.buffer.set(buffer.c_str(), rsize);
         data.addr = socket_table.at(desc).raddress;
@@ -517,31 +550,39 @@ public:
     SocketData recvall(uint32_t size, bool mtx_bypass = false) {
         SocketData ret;
         
-        if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
+        {
+            std::lock_guard lck(socket_table_mtx);
+            if (!mtx_bypass) socket_table.at(desc).recvMtx.lock();
+        }
 
         do ret.buffer.append(recv(size - ret.buffer.size()).buffer);
         while (ret.buffer.size() < size && is_working());
 
-        if (!mtx_bypass) socket_table.at(desc).recvMtx.unlock();
+        {
+            std::lock_guard lck(socket_table_mtx);
+                
+            if (!mtx_bypass) socket_table.at(desc).recvMtx.unlock();
 
-        ret.addr = socket_table.at(desc).raddress;
+            ret.addr = socket_table.at(desc).raddress;
+        }
 
         return ret;
     }
 
     SocketData recvmsg() {
-        socket_table.at(desc).recvMtx.lock();
+        socket_table_mtx.lock();
+
+        std::lock_guard lck2(socket_table.at(desc).recvMtx);
+        
+        socket_table_mtx.unlock();
 
         SocketData recvsize = recvall(sizeof(uint32_t), true);
 
         if (!recvsize.buffer.size()) {
-            socket_table.at(desc).recvMtx.unlock();
             return {};
         }
 
         SocketData ret = recvall(ntohl(*reinterpret_cast<const uint32_t*>(recvsize.buffer.c_str())), true);
-
-        socket_table.at(desc).recvMtx.unlock();
 
         return ret;
     }
@@ -591,14 +632,20 @@ public:
     }
 
     const SocketAddress localSocketAddress() const {
+        std::lock_guard lck(socket_table_mtx);
+
         return socket_table.at(desc).laddress;
     }
 
     const SocketAddress remoteSocketAddress() const {
+        std::lock_guard lck(socket_table_mtx);
+
         return socket_table.at(desc).raddress;
     }
     
     void shutdown() {
+        std::lock_guard lck(socket_table_mtx);
+
 #ifdef _WIN32
         ::shutdown(desc, SD_BOTH);
 #elif __linux__
@@ -609,6 +656,8 @@ public:
     }
 
     void close() {
+        std::lock_guard lck(socket_table_mtx);
+
         // std::cout << "Closing fd: " << desc << std::endl;
         if (is_working()) shutdown();
         
