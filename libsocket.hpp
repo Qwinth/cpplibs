@@ -62,14 +62,12 @@ struct SocketAddress {
     std::string str() const { return strformat("%s:%d", ip.c_str(), port); }
 };
 
-class SocketParamTable {
-    mutable std::shared_mutex table_mtx;
+struct SocketParamTable {
+    std::string param_table_id;
 
     std::atomic_bool working;
     std::atomic_bool opened;
     std::atomic_bool blocking;
-
-    std::string param_table_id;
 
     int sock_af;
     int sock_type;
@@ -81,177 +79,10 @@ class SocketParamTable {
     std::recursive_mutex sendMtx;
 
     std::atomic_int n_links;
-
-public:
-    bool isWorking() const {
-        std::shared_lock lck(table_mtx);
-
-        return working;
-    }
-
-    bool isOpened() const {
-        std::shared_lock lck(table_mtx);
-
-        return opened;
-    }
-
-    bool isBlocking() const {
-        std::shared_lock lck(table_mtx);
-
-        return blocking;
-    }
-
-    std::string getParamTableId() const {
-        std::shared_lock lck(table_mtx);
-        
-        return param_table_id;
-    }
-
-    int getSocketFamily() const {
-        std::shared_lock lck(table_mtx);
-
-        return sock_af;
-    }
-
-    int getSocketType() const {
-        std::shared_lock lck(table_mtx);
-
-        return sock_type;
-    }
-
-    SocketAddress getSocketLocalAddress() const {
-        std::shared_lock lck(table_mtx);
-
-        return laddress;
-    }
-
-    SocketAddress getSocketRemoteAddress() const {
-        std::shared_lock lck(table_mtx);
-
-        return raddress;
-    }
-
-    std::recursive_mutex& getRecvMutex() {
-        std::shared_lock lck(table_mtx);
-
-        return recvMtx;
-    }
-
-    std::recursive_mutex& getSendMutex() {
-        std::shared_lock lck(table_mtx);
-
-        return sendMtx;
-    }
-
-    int getLinkCount() const {
-        std::shared_lock lck(table_mtx);
-
-        return n_links;
-    }
-
-    void setWorking(bool __val) {
-        std::lock_guard lck(table_mtx);
-
-        working = __val;
-    }
-
-    void setOpened(bool __val) {
-        std::lock_guard lck(table_mtx);
-
-        opened = __val;
-    }
-
-    void setBlocking(bool __val) {
-        std::lock_guard lck(table_mtx);
-
-        blocking = __val;
-    }
-
-    void setParamTableId(std::string __val) {
-        std::lock_guard lck(table_mtx);
-
-        param_table_id = __val;
-    }
-
-    void setSocketFamily(int __val) {
-        std::lock_guard lck(table_mtx);
-
-        sock_af = __val;
-    }
-
-    void setSocketType(int __val) {
-        std::lock_guard lck(table_mtx);
-
-        sock_type = __val;
-    }
-
-    void setSocketLocalAddress(SocketAddress __val) {
-        std::lock_guard lck(table_mtx);
-
-        laddress = __val;
-    }
-
-    void setSocketRemoteAddress(SocketAddress __val) {
-        std::lock_guard lck(table_mtx);
-
-        raddress = __val;
-    }
-
-    void setLinkCount(int __val) {
-        std::lock_guard lck(table_mtx);
-
-        n_links = __val;
-    }
-
-    void newLink() {
-        std::lock_guard lck(table_mtx);
-
-        n_links++;
-    }
-
-    void removeLink() {
-        std::lock_guard lck(table_mtx);
-
-        n_links--;
-    }
 };
 
-class SocketTable {
-    mutable std::shared_mutex socket_table_mtx;
-    
-    std::map<FileDescriptor, SocketParamTable> socket_table;
-
-public:
-    SocketParamTable& getParamTable(FileDescriptor fd) {
-        std::shared_lock lck(socket_table_mtx);
-
-        if (socket_table.find(fd) == socket_table.end()) throw std::runtime_error("getParamTable(FileDescriptor): Non-socket or closed fd");
-
-        return socket_table.at(fd);
-    }
-
-    SocketParamTable& createParamTable(FileDescriptor fd) {
-        std::lock_guard lck(socket_table_mtx);
-
-        socket_table.try_emplace(fd);
-
-        return socket_table.at(fd);
-    }
-
-    void removeParamTable(FileDescriptor fd) {
-        std::lock_guard lck(socket_table_mtx);
-
-        if (socket_table.find(fd) != socket_table.end()) socket_table.erase(fd);
-    }
-
-    bool existsParamTable(FileDescriptor fd) const {
-        std::shared_lock lck(socket_table_mtx);
-
-        return socket_table.find(fd) != socket_table.end();
-    }
-};
-
-SocketTable socket_table;
+std::recursive_mutex socket_table_mtx;
+std::map<FileDescriptor, SocketParamTable> socket_table;
 
 struct SocketData {
     BytesArray buffer;
@@ -290,41 +121,49 @@ public:
     Socket(int _af, int _type) { open(_af, _type); }
 
     Socket(FileDescriptor fd) {
-        if (!socket_table.existsParamTable(fd)) throw std::runtime_error("Socket(FileDescriptor): Non-socket or closed fd");
+        std::lock_guard lck(socket_table_mtx);
+
+        if (socket_table.find(fd) == socket_table.end()) throw std::runtime_error("Socket(FileDescriptor): Non-socket or closed fd");
 
         desc = fd;
-        param_id = socket_table.getParamTable(desc).getParamTableId();
+        param_id = socket_table.at(desc).param_table_id;
 
-        socket_table.getParamTable(desc).newLink();
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by constructor(FD) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by constructor(FD) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     Socket(const Socket& obj) {
+        std::lock_guard lck(socket_table_mtx);
+
         desc = obj.desc;
-        param_id = socket_table.getParamTable(desc).getParamTableId();
+        param_id = socket_table.at(desc).param_table_id;
 
-        socket_table.getParamTable(desc).newLink();
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by constructor(COPY) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by constructor(COPY) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     Socket(Socket&& obj) {
-        std::swap(desc, obj.desc);
-        param_id = socket_table.getParamTable(desc).getParamTableId();
+        std::lock_guard lck(socket_table_mtx);
 
-        // std::cout << "Move container by constructor(MOVE) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        std::swap(desc, obj.desc);
+        param_id = socket_table.at(desc).param_table_id;
+
+        // std::cout << "Move container by constructor(MOVE) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     ~Socket() {
-        if (!socket_table.existsParamTable(desc) || socket_table.getParamTable(desc).getParamTableId() != param_id) return;
+        std::lock_guard lck(socket_table_mtx);
 
-        socket_table.getParamTable(desc).removeLink();
+        if (socket_table.find(desc) == socket_table.end() || socket_table.at(desc).param_table_id != param_id) return;
 
-        // std::cout << "Deleting container: " << this << ", Links: " << socket_table.getParamTable(desc).n_links << ", fd: " << desc << std::endl;
+        socket_table.at(desc).n_links--;
 
-        if (!socket_table.getParamTable(desc).getLinkCount() && !socket_table.getParamTable(desc).isOpened()) {
-            socket_table.removeParamTable(desc);
+        // std::cout << "Deleting container: " << this << ", Links: " << socket_table.at(desc).n_links << ", fd: " << desc << std::endl;
+
+        if (!socket_table.at(desc).n_links && !socket_table.at(desc).opened) {
+            socket_table.erase(desc);
 
             // std::cout << "No containers for fd: " << desc << "! Removing socket param table for fd: " << desc << "." << std::endl;
             // std::cout << "Socket param table size: " << socket_table.size() << std::endl;         
@@ -332,32 +171,38 @@ public:
     }
 
     Socket& operator=(FileDescriptor fd) {
+        std::lock_guard lck(socket_table_mtx);
+
         desc = fd;
-        param_id = socket_table.getParamTable(desc).getParamTableId();
+        param_id = socket_table.at(desc).param_table_id;
 
-        socket_table.getParamTable(desc).newLink();
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by operator(FD) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by operator(FD) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
 
         return *this;
     }
 
     Socket& operator=(const Socket& obj) {
+        std::lock_guard lck(socket_table_mtx);
+
         desc = obj.desc;
-        param_id = socket_table.getParamTable(desc).getParamTableId();
+        param_id = socket_table.at(desc).param_table_id;
 
-        socket_table.getParamTable(desc).newLink();
+        socket_table.at(desc).n_links++;
 
-        // std::cout << "New container by operator(COPY) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        // std::cout << "New container by operator(COPY) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
 
         return *this;
     }
 
     Socket& operator=(Socket&& obj) {
-        std::swap(desc, obj.desc);
-        param_id = socket_table.getParamTable(desc).getParamTableId();
+        std::lock_guard lck(socket_table_mtx);
 
-        // std::cout << "Move container by operator(MOVE) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        std::swap(desc, obj.desc);
+        param_id = socket_table.at(desc).param_table_id;
+
+        // std::cout << "Move container by operator(MOVE) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
 
         return *this;
     }
@@ -370,19 +215,24 @@ public:
         unsigned long __blocking = !_blocking;
         ioctlsocket(desc, FIONBIO, &__blocking);
     #endif
+        std::lock_guard lck(socket_table_mtx);
 
-        socket_table.getParamTable(desc).setBlocking(_blocking);
+        socket_table.at(desc).blocking = _blocking;
     }
 
     bool isBlocking() const {
 #ifdef __linux__
         return !(fcntl(desc, F_GETFL) & O_NONBLOCK);
 #elif _WIN32
-        return socket_table.getParamTable(desc).isBlocking();
+        std::lock_guard lck(socket_table_mtx);
+
+        return socket_table.at(desc).isBlocking();
 #endif
     }
 
     void open(int _af = AF_INET, int _type = SOCK_STREAM) {
+        std::lock_guard lck(socket_table_mtx);
+
 #ifdef _WIN32
         WSAData wsa;
         WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -391,32 +241,38 @@ public:
 
         param_id = uuid4();
         
-        socket_table.createParamTable(desc);
-        socket_table.getParamTable(desc).setOpened(true);
-        socket_table.getParamTable(desc).setWorking(true);
-        socket_table.getParamTable(desc).setParamTableId(param_id);
-        socket_table.getParamTable(desc).setSocketFamily(_af);
-        socket_table.getParamTable(desc).setSocketType(_type);
-        socket_table.getParamTable(desc).setLinkCount(1);
-        // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_table.getParamTable(desc).n_links << ", container: " << this << std::endl;
+        socket_table.try_emplace(desc);
+        socket_table.at(desc).param_table_id = param_id;
+        socket_table.at(desc).opened = true;
+        socket_table.at(desc).working = true;
+        socket_table.at(desc).sock_af = _af;
+        socket_table.at(desc).sock_type = _type;
+        socket_table.at(desc).n_links = 1;
+        // std::cout << "New container by constructor(OPEN) for fd: " << desc << ", Links: " << socket_table.at(desc).n_links << ", container: " << this << std::endl;
     }
 
     bool isOpened() const {
-        return socket_table.existsParamTable(desc) && socket_table.getParamTable(desc).isOpened();
+        std::lock_guard lck(socket_table_mtx);
+
+        return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).opened;
     }
 
     bool isWorking() const {
-        return socket_table.existsParamTable(desc) && socket_table.getParamTable(desc).isWorking();
+        std::lock_guard lck(socket_table_mtx);
+
+        return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).working;
     }
 
     void connect(std::string ipaddr, uint16_t port) {
+        std::lock_guard lck(socket_table_mtx);
+
         if (ipaddr == "") ipaddr = "127.0.0.1";
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::connect(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        socket_table.getParamTable(desc).setSocketLocalAddress(getsockname());
-        socket_table.getParamTable(desc).setSocketRemoteAddress(sockaddr_in_to_SocketAddress(sock));
+        socket_table.at(desc).laddress = getsockname();
+        socket_table.at(desc).raddress = sockaddr_in_to_SocketAddress(sock);
     }
 
     void connect(std::string addr) {
@@ -426,11 +282,13 @@ public:
     }
 
     void bind(std::string ipaddr, uint16_t port) {
+        std::lock_guard lck(socket_table_mtx);
+
         sockaddr_in sock = make_sockaddr_in(ipaddr, port);
 
         if (::bind(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        socket_table.getParamTable(desc).setSocketLocalAddress(sockaddr_in_to_SocketAddress(sock));
+        socket_table.at(desc).laddress = sockaddr_in_to_SocketAddress(sock);
     }
 
     void bind(std::string addr) {
@@ -525,6 +383,8 @@ public:
     }
 
     Socket accept() {
+        std::lock_guard lck(socket_table_mtx);
+
         sockaddr_in client;
         socklen_t c = sizeof(sockaddr_in);
 
@@ -532,21 +392,22 @@ public:
 
         if (new_socket == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
-        socket_table.createParamTable(new_socket);
-        socket_table.getParamTable(new_socket).setOpened(true);
-        socket_table.getParamTable(new_socket).setWorking(true);
-        socket_table.getParamTable(new_socket).setParamTableId(uuid4());
-        socket_table.getParamTable(new_socket).setSocketFamily(socket_table.getParamTable(desc).getSocketFamily());
-        socket_table.getParamTable(new_socket).setSocketType(socket_table.getParamTable(desc).getSocketType());
-        socket_table.getParamTable(new_socket).setSocketRemoteAddress(sockaddr_in_to_SocketAddress(client));
-        socket_table.getParamTable(new_socket).setSocketLocalAddress(socket_table.getParamTable(desc).getSocketLocalAddress());
-        socket_table.getParamTable(new_socket).setLinkCount(0);
+        socket_table.try_emplace(new_socket);
+        socket_table.at(new_socket).param_table_id = uuid4();
+        socket_table.at(new_socket).opened = true;
+        socket_table.at(new_socket).working = true;
+        socket_table.at(new_socket).sock_af = socket_table.at(desc).sock_af;
+        socket_table.at(new_socket).sock_type = socket_table.at(desc).sock_type;
+        socket_table.at(new_socket).raddress = sockaddr_in_to_SocketAddress(client);
+        socket_table.at(new_socket).laddress = socket_table.at(desc).laddress;
+        socket_table.at(new_socket).n_links = 0;
 
         return new_socket;
     }
 
     int64_t send(const void* data, int64_t size, int flags = 0) {
-        std::lock_guard lck(socket_table.getParamTable(desc).getSendMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
 #ifdef _WIN32
         return ::send(desc, reinterpret_cast<const char*>(data), size, flags);
@@ -572,7 +433,8 @@ public:
     }
 
     int64_t sendall(const void* data, int64_t size, int flags = 0) {
-        std::lock_guard lck(socket_table.getParamTable(desc).getSendMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
         int64_t ptr = 0;
         int preverrno = errno;
@@ -606,7 +468,8 @@ public:
     }
 
     int64_t sendmsg(const void* data, uint32_t size) {
-        std::lock_guard lck(socket_table.getParamTable(desc).getSendMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
         MsgPacket packet;
 
@@ -633,7 +496,8 @@ public:
     }
 
     int64_t send_file(std::ifstream& file) {
-        std::lock_guard lck(socket_table.getParamTable(desc).getSendMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
         BytesArray buffer;
         buffer.resize(256 * 1024);
@@ -672,7 +536,8 @@ public:
     int64_t sendto(SocketData data) { return sendto(data.buffer.c_str(), data.buffer.size(), data.addr.ip, data.addr.port); }
 
     SocketData recv(uint32_t size) {
-        std::lock_guard lck(socket_table.getParamTable(desc).getRecvMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).recvMtx);
 
         BytesArray buffer;
         buffer.resize(size);
@@ -691,26 +556,28 @@ public:
 
         SocketData data;
         data.buffer.set(buffer.c_str(), rsize);
-        data.addr = socket_table.getParamTable(desc).getSocketRemoteAddress();
+        data.addr = socket_table.at(desc).raddress;
 
         return data;
     }
 
     SocketData recvall(uint32_t size) {
-        std::lock_guard lck(socket_table.getParamTable(desc).getRecvMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).recvMtx);
 
         SocketData ret;
 
         do ret.buffer.append(recv(size - ret.buffer.size()).buffer);
         while (ret.buffer.size() < size && isWorking());
 
-        ret.addr = socket_table.getParamTable(desc).getSocketRemoteAddress();
+        ret.addr = socket_table.at(desc).raddress;
 
         return ret;
     }
 
     SocketData recvmsg() {
-        std::lock_guard lck(socket_table.getParamTable(desc).getRecvMutex());
+        std::lock_guard lck(socket_table_mtx);
+        std::lock_guard lck1(socket_table.at(desc).recvMtx);
 
         SocketData recvsize = recvall(sizeof(uint32_t));
 
@@ -768,24 +635,32 @@ public:
     }
 
     const SocketAddress localSocketAddress() const {
-        return socket_table.getParamTable(desc).getSocketLocalAddress();
+        std::lock_guard lck(socket_table_mtx);
+
+        return socket_table.at(desc).laddress;
     }
 
     const SocketAddress remoteSocketAddress() const {
-        return socket_table.getParamTable(desc).getSocketRemoteAddress();
+        std::lock_guard lck(socket_table_mtx);
+
+        return socket_table.at(desc).raddress;
     }
     
     void shutdown() {
+        std::lock_guard lck(socket_table_mtx);
+
 #ifdef _WIN32
         ::shutdown(desc, SD_BOTH);
 #elif __linux__
         ::shutdown(desc, SHUT_RDWR);
 #endif
 
-        socket_table.getParamTable(desc).setWorking(false);
+        socket_table.at(desc).working = false;
     }
 
     void close() {
+        std::lock_guard lck(socket_table_mtx);
+
         // std::cout << "Closing fd: " << desc << std::endl;
         if (isWorking()) shutdown();
         
@@ -796,7 +671,7 @@ public:
         ::close(desc);
 #endif
 
-        socket_table.getParamTable(desc).setOpened(false);
+        socket_table.at(desc).opened = false;
     }
 };
 
