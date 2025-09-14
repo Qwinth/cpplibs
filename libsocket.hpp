@@ -440,7 +440,7 @@ public:
         int preverrno = errno;
 
         while (ptr < size) {
-            int64_t n = send(((char*)data) + ptr, size - ptr, flags);
+            int64_t n = send(((uint8_t*)data) + ptr, size - ptr, flags);
 
             if (n < 0) {
                 errno = preverrno;
