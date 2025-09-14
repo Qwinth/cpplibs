@@ -428,7 +428,7 @@ public:
         return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(char ch, int flags = 0) {
+    int64_t send(uint8_t ch, int flags = 0) {
         return send(&ch, 1, flags);
     }
 
