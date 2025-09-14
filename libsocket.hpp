@@ -428,8 +428,20 @@ public:
         return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(uint8_t ch, int flags = 0) {
-        return send(&ch, 1, flags);
+    int64_t sendbyte(uint8_t val, int flags = 0) {
+        return send(&val, sizeof(val), flags);
+    }
+
+    int64_t sendshort(uint16_t val, int flags = 0) {
+        return send(&val, sizeof(val), flags);
+    }
+
+    int64_t sendint(uint32_t val, int flags = 0) {
+        return send(&val, sizeof(val), flags);
+    }
+
+    int64_t sendlong(uint64_t val, int flags = 0) {
+        return send(&val, sizeof(val), flags);
     }
 
     int64_t sendall(const void* data, int64_t size, int flags = 0) {
@@ -440,7 +452,7 @@ public:
         int preverrno = errno;
 
         while (ptr < size) {
-            int64_t n = send(((uint8_t*)data) + ptr, size - ptr, flags);
+            int64_t n = send(reinterpret_cast<const uint8_t*>(data) + ptr, size - ptr, flags);
 
             if (n < 0) {
                 errno = preverrno;
@@ -591,9 +603,27 @@ public:
     }
 
     uint8_t recvbyte() {
-        SocketData recvbyte = recv(1);
+        SocketData data = recvall(1);
 
-        return recvbyte.buffer.front();
+        return data.buffer.front();
+    }
+
+    uint16_t recvshort() {
+        SocketData data = recvall(2);
+
+        return *reinterpret_cast<const uint16_t*>(data.buffer.c_str());
+    }
+
+    uint32_t recvint() {
+        SocketData data = recvall(4);
+
+        return *reinterpret_cast<const uint32_t*>(data.buffer.c_str());
+    }
+
+    uint64_t recvlong() {
+        SocketData data = recvall(8);
+
+        return *reinterpret_cast<const uint64_t*>(data.buffer.c_str());
     }
 
     SocketData recvfrom(int64_t size) {
