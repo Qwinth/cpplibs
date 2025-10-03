@@ -1,4 +1,4 @@
-// version 2.5.5
+// version 2.5.6
 #pragma once
 #include <iostream>
 #include <string>
@@ -12,6 +12,7 @@
 #include <memory>
 #include <map>
 #include <atomic>
+#include <optional>
 
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -54,6 +55,22 @@ typedef int socklen_t;
 #include "libfd.hpp"
 #include "libbytesarray.hpp"
 #include "libpoll.hpp"
+
+uint64_t ntohll(uint64_t val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return ((uint64_t)ntohl(val & 0xFFFFFFFF) << 32) | ntohl(val >> 32);
+#else
+    return val;
+#endif
+}
+
+uint64_t htonll(uint64_t val) {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    return (static_cast<uint64_t>(htonl(val & 0xFFFFFFFFULL)) << 32) | htonl(val >> 32);
+#else
+    return val;
+#endif
+}
 
 struct SocketAddress {
     std::string ip;
@@ -428,22 +445,6 @@ public:
         return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendbyte(uint8_t val, int flags = 0) {
-        return send(&val, sizeof(val), flags);
-    }
-
-    int64_t sendshort(uint16_t val, int flags = 0) {
-        return send(&val, sizeof(val), flags);
-    }
-
-    int64_t sendint(uint32_t val, int flags = 0) {
-        return send(&val, sizeof(val), flags);
-    }
-
-    int64_t sendlong(uint64_t val, int flags = 0) {
-        return send(&val, sizeof(val), flags);
-    }
-
     int64_t sendall(const void* data, int64_t size, int flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).sendMtx);
@@ -477,6 +478,28 @@ public:
 
     int64_t sendall(BytesArray data, int flags = 0) {
         return sendall(data.c_str(), data.size(), flags);
+    }
+
+    int64_t sendbyte(uint8_t val, int flags = 0) {
+        return sendall(&val, sizeof(val), flags);
+    }
+
+    int64_t sendshort(uint16_t val, int flags = 0) {
+        uint16_t net_val = htons(val);
+
+        return sendall(&net_val, sizeof(val), flags);
+    }
+
+    int64_t sendint(uint32_t val, int flags = 0) {
+        uint32_t net_val = htonl(val);
+
+        return sendall(&net_val, sizeof(val), flags);
+    }
+
+    int64_t sendlong(uint64_t val, int flags = 0) {
+        uint16_t net_val = htonll(val);
+
+        return sendall(&net_val, sizeof(val), flags);
     }
 
     int64_t sendmsg(const void* data, uint32_t size) {
@@ -602,28 +625,36 @@ public:
         return ret;
     }
 
-    uint8_t recvbyte() {
+    std::optional<uint8_t> recvbyte() {
         SocketData data = recvall(1);
 
-        return data.buffer.front();
+        if (data.buffer.size()) return data.buffer.front();
+
+        return std::nullopt;
     }
 
-    uint16_t recvshort() {
+    std::optional<uint16_t> recvshort() {
         SocketData data = recvall(2);
 
-        return *reinterpret_cast<const uint16_t*>(data.buffer.c_str());
+        if (data.buffer.size() == 2) return ntohs(*reinterpret_cast<const uint16_t*>(data.buffer.c_str()));
+
+        return std::nullopt;
     }
 
-    uint32_t recvint() {
+    std::optional<uint32_t> recvint() {
         SocketData data = recvall(4);
 
-        return *reinterpret_cast<const uint32_t*>(data.buffer.c_str());
+        if (data.buffer.size() == 4) return ntohl(*reinterpret_cast<const uint32_t*>(data.buffer.c_str()));
+
+        return std::nullopt;
     }
 
-    uint64_t recvlong() {
+    std::optional<uint64_t> recvlong() {
         SocketData data = recvall(8);
 
-        return *reinterpret_cast<const uint64_t*>(data.buffer.c_str());
+        if (data.buffer.size() == 8) return ntohll(*reinterpret_cast<const uint64_t*>(data.buffer.c_str()));
+
+        return std::nullopt;
     }
 
     SocketData recvfrom(int64_t size) {
