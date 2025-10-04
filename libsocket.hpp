@@ -1,4 +1,4 @@
-// version 2.5.6
+// version 2.5.7-с3
 #pragma once
 #include <iostream>
 #include <string>
@@ -26,8 +26,8 @@
 #define MSG_CONFIRM 0
 #define _MSG_WAITALL 0
 
-// typedef long int64_t;
-typedef int socklen_t;
+// typedef int64_t int64_t;
+typedef int32_t socklen_t;
 #endif
 
 #elif __linux__
@@ -70,14 +70,52 @@ uint64_t htonll(uint64_t val) {
 #else
     return val;
 #endif
+
+}
+
+bool is_IPv4(std::string ipaddr) {
+    replaceAll(ipaddr, ".", "");
+    return std::all_of(ipaddr.begin(), ipaddr.end(), ::isdigit);
+}
+
+std::string gethostbyname(std::string name) {
+    hostent* remoteHost;
+    in_addr addr;
+
+    remoteHost = ::gethostbyname(name.c_str());
+
+    if (!remoteHost) throw std::runtime_error("DNS resolve failed");
+
+    addr.s_addr = *reinterpret_cast<uint32_t*>(remoteHost->h_addr_list[0]);
+    return std::string(inet_ntoa(addr));
 }
 
 struct SocketAddress {
-    std::string ip;
-    uint16_t port = 0;
-
-    std::string str() const { return strformat("%s:%d", ip.c_str(), port); }
+    std::string str_addr;
+    uint16_t port;
+    uint16_t addr_family;
 };
+
+sockaddr_in make_sockaddr_in(SocketAddress addr) {
+    sockaddr_in tmpaddr;
+
+    if (addr.addr_family != AF_INET) return {};
+
+    if (addr.str_addr.size()) {
+        if (!is_IPv4(addr.str_addr)) addr.str_addr = gethostbyname(addr.str_addr);
+
+        tmpaddr.sin_addr.s_addr = inet_addr(addr.str_addr.c_str());
+    }
+
+    else tmpaddr.sin_addr.s_addr = htonl(INADDR_ANY);        
+
+    tmpaddr.sin_family = addr.addr_family;
+    tmpaddr.sin_port = htons(addr.port);
+
+    return tmpaddr;
+}
+
+SocketAddress sockaddr_in_to_SocketAddress(sockaddr_in addr) { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), addr.sin_family }; }
 
 struct SocketParamTable {
     std::string param_table_id;
@@ -86,8 +124,8 @@ struct SocketParamTable {
     std::atomic_bool opened;
     std::atomic_bool blocking;
 
-    int sock_af;
-    int sock_type;
+    int32_t sock_af;
+    int32_t sock_type;
 
     SocketAddress laddress;
     SocketAddress raddress;
@@ -108,34 +146,9 @@ struct SocketData {
 
 class Socket : public FileDescriptor {
     std::string param_id;
-
-    bool is_IPv4(std::string ipaddr) const {
-        replaceAll(ipaddr, ".", "");
-        return std::all_of(ipaddr.begin(), ipaddr.end(), ::isdigit);
-    }
-
-    sockaddr_in make_sockaddr_in(std::string ipaddr, uint16_t port) const {
-        sockaddr_in tmpaddr;
-
-        if (ipaddr.size()) {
-            if (!is_IPv4(ipaddr)) ipaddr = gethostbyname(ipaddr);
-
-            tmpaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
-        }
-
-        else tmpaddr.sin_addr.s_addr = htonl(INADDR_ANY);        
-
-        tmpaddr.sin_family = getsockfamily();
-        tmpaddr.sin_port = htons(port);
-
-        return tmpaddr;
-    }
-
-    SocketAddress sockaddr_in_to_SocketAddress(sockaddr_in addr) const { return { inet_ntoa(addr.sin_addr), ntohs(addr.sin_port) }; }
-
 public:
     Socket() {}
-    Socket(int _af, int _type) { open(_af, _type); }
+    Socket(int32_t _af, int32_t _type, int32_t _proto = 0) { open(_af, _type, _proto); }
 
     Socket(FileDescriptor fd) {
         std::lock_guard lck(socket_table_mtx);
@@ -182,6 +195,10 @@ public:
         if (!socket_table.at(desc).n_links && !socket_table.at(desc).opened) {
             socket_table.erase(desc);
 
+#ifdef _WIN32
+            if (socket_table.empty()) ::WSACleanup();
+#endif
+
             // std::cout << "No containers for fd: " << desc << "! Removing socket param table for fd: " << desc << "." << std::endl;
             // std::cout << "Socket param table size: " << socket_table.size() << std::endl;         
         }
@@ -189,6 +206,8 @@ public:
 
     Socket& operator=(FileDescriptor fd) {
         std::lock_guard lck(socket_table_mtx);
+
+        if (desc >= 0) socket_table.at(desc).n_links--;
 
         desc = fd;
         param_id = socket_table.at(desc).param_table_id;
@@ -203,6 +222,8 @@ public:
     Socket& operator=(const Socket& obj) {
         std::lock_guard lck(socket_table_mtx);
 
+        if (desc >= 0) socket_table.at(desc).n_links--;
+
         desc = obj.desc;
         param_id = socket_table.at(desc).param_table_id;
 
@@ -215,6 +236,8 @@ public:
 
     Socket& operator=(Socket&& obj) {
         std::lock_guard lck(socket_table_mtx);
+
+        if (desc >= 0) socket_table.at(desc).n_links--;
 
         std::swap(desc, obj.desc);
         param_id = socket_table.at(desc).param_table_id;
@@ -229,7 +252,7 @@ public:
         if (_blocking) fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) & ~O_NONBLOCK);
         else fcntl(desc, F_SETFL, fcntl(desc, F_GETFL) | O_NONBLOCK);
     #elif _WIN32
-        unsigned long __blocking = !_blocking;
+        uint64_t __blocking = !_blocking;
         ioctlsocket(desc, FIONBIO, &__blocking);
     #endif
         std::lock_guard lck(socket_table_mtx);
@@ -247,14 +270,16 @@ public:
 #endif
     }
 
-    void open(int _af = AF_INET, int _type = SOCK_STREAM) {
+    void open(int32_t _af = AF_INET, int32_t _type = SOCK_STREAM, int32_t _proto = 0) {
         std::lock_guard lck(socket_table_mtx);
 
 #ifdef _WIN32
-        WSAData wsa;
-        WSAStartup(MAKEWORD(2, 2), &wsa);
+        if (socket_table.empty()) {
+            WSAData wsa;
+            WSAStartup(MAKEWORD(2, 2), &wsa);
+        }
 #endif
-        if ((desc = ::socket(_af, _type, 0)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
+        if ((desc = ::socket(_af, _type, _proto)) == INVALID_SOCKET) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         param_id = uuid4();
         
@@ -280,11 +305,11 @@ public:
         return socket_table.find(desc) != socket_table.end() && socket_table.at(desc).working;
     }
 
-    void connect(std::string ipaddr, uint16_t port) {
+    void connect(SocketAddress addr) {
         std::lock_guard lck(socket_table_mtx);
 
-        if (ipaddr == "") ipaddr = "127.0.0.1";
-        sockaddr_in sock = make_sockaddr_in(ipaddr, port);
+        if (addr.str_addr == "" && addr.addr_family == AF_INET) addr.str_addr = "127.0.0.1";
+        sockaddr_in sock = make_sockaddr_in({addr.str_addr, addr.port, getsockfamily()});
 
         if (::connect(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
@@ -292,26 +317,14 @@ public:
         socket_table.at(desc).raddress = sockaddr_in_to_SocketAddress(sock);
     }
 
-    void connect(std::string addr) {
-        auto tmpaddr = split(addr, ':');
-
-        connect(tmpaddr[0], std::stoi(tmpaddr[1]));
-    }
-
-    void bind(std::string ipaddr, uint16_t port) {
+    void bind(SocketAddress addr) {
         std::lock_guard lck(socket_table_mtx);
 
-        sockaddr_in sock = make_sockaddr_in(ipaddr, port);
+        sockaddr_in sock = make_sockaddr_in({addr.str_addr, addr.port, getsockfamily()});
 
         if (::bind(desc, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
 
         socket_table.at(desc).laddress = sockaddr_in_to_SocketAddress(sock);
-    }
-
-    void bind(std::string addr) {
-        auto tmpaddr = split(addr, ':');
-
-        bind(tmpaddr[0], std::stoi(tmpaddr[1]));
     }
 
     std::string gethostbyname(std::string name) const {
@@ -341,7 +354,7 @@ public:
     }
 
     template<typename T>
-        void setsockopt(int level, int optname, T optval) {
+        void setsockopt(int32_t level, int32_t optname, T optval) {
     #ifdef _WIN32
             if (::setsockopt(desc, level, optname, reinterpret_cast<char*>(&optval), sizeof(T)) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
@@ -350,7 +363,7 @@ public:
         }
 
         template<typename T>
-        int getsockopt(int level, int optname, T& optval, socklen_t size = sizeof(T)) const {
+        int32_t getsockopt(int32_t level, int32_t optname, T& optval, socklen_t size = sizeof(T)) const {
     #ifdef _WIN32
             if (::getsockopt(desc, level, optname, reinterpret_cast<char*>(&optval), &size) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     #elif __linux__
@@ -359,14 +372,14 @@ public:
             return size;
         }
 
-    int getsocktype() {
-        int type;
+    int32_t getsocktype() {
+        int32_t type;
         getsockopt(SOL_SOCKET, SO_TYPE, type);
 
         return type;
     }
 #ifdef _WIN32
-    int getsockfamily() const {
+    int32_t getsockfamily() const {
         WSAPROTOCOL_INFO proto;
         WSADuplicateSocket(desc, GetCurrentProcessId(), &proto);
 
@@ -381,7 +394,7 @@ public:
     }
 #endif
 
-    void listen(int clients = 0) {
+    void listen(int32_t clients = 0) {
         if (::listen(desc, clients) == SOCKET_ERROR) throw std::runtime_error(GETSOCKETERRNOMSG());
     }
 
@@ -422,7 +435,7 @@ public:
         return new_socket;
     }
 
-    int64_t send(const void* data, int64_t size, int flags = 0) {
+    int64_t send(const void* data, int64_t size, int32_t flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
@@ -433,24 +446,24 @@ public:
 #endif
     }
 
-    int64_t send(std::string data, int flags = 0) {
+    int64_t send(std::string data, int32_t flags = 0) {
         return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(MsgPacket data, int flags = 0) {
+    int64_t send(MsgPacket data, int32_t flags = 0) {
         return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t send(BytesArray data, int flags = 0) {
+    int64_t send(BytesArray data, int32_t flags = 0) {
         return send(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendall(const void* data, int64_t size, int flags = 0) {
+    int64_t sendall(const void* data, int64_t size, int32_t flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
         int64_t ptr = 0;
-        int preverrno = errno;
+        int32_t preverrno = errno;
 
         while (ptr < size) {
             int64_t n = send(reinterpret_cast<const uint8_t*>(data) + ptr, size - ptr, flags);
@@ -468,41 +481,30 @@ public:
         return ptr;
     }
 
-    int64_t sendall(std::string data, int flags = 0) {
+    int64_t sendall(std::string data, int32_t flags = 0) {
         return sendall(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendall(MsgPacket data, int flags = 0) {
+    int64_t sendall(MsgPacket data, int32_t flags = 0) {
         return sendall(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendall(BytesArray data, int flags = 0) {
+    int64_t sendall(BytesArray data, int32_t flags = 0) {
         return sendall(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendbyte(uint8_t val, int flags = 0) {
-        return sendall(&val, sizeof(val), flags);
+    template<class Int>
+    int64_t sendint(Int val, int32_t flags = 0) {
+        Int net_val = val;
+
+        if (sizeof(val) == 2) net_val = htons(val);
+        else if (sizeof(val) == 4) net_val = htonl(val);
+        else if (sizeof(val) == 8) net_val = htonll(val);
+
+        return this->sendall(&net_val, sizeof(val), flags);
     }
 
-    int64_t sendshort(uint16_t val, int flags = 0) {
-        uint16_t net_val = htons(val);
-
-        return sendall(&net_val, sizeof(val), flags);
-    }
-
-    int64_t sendint(uint32_t val, int flags = 0) {
-        uint32_t net_val = htonl(val);
-
-        return sendall(&net_val, sizeof(val), flags);
-    }
-
-    int64_t sendlong(uint64_t val, int flags = 0) {
-        uint16_t net_val = htonll(val);
-
-        return sendall(&net_val, sizeof(val), flags);
-    }
-
-    int64_t sendmsg(const void* data, uint32_t size) {
+    int64_t sendmsg(const void* data, uint32_t size, int32_t flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).sendMtx);
 
@@ -511,75 +513,55 @@ public:
         packet.write(htonl(size));
         packet.write(data, size);
 
-        int64_t retsize = sendall(packet);
+        int64_t retsize = sendall(packet, flags);
 
         packet.clear();
 
         return retsize;
     }
 
-    int64_t sendmsg(std::string data) {
-        return sendmsg(data.c_str(), data.size());
+    int64_t sendmsg(std::string data, int32_t flags = 0) {
+        return sendmsg(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendmsg(MsgPacket data) {
-        return sendmsg(data.c_str(), data.size());
+    int64_t sendmsg(MsgPacket data, int32_t flags = 0) {
+        return sendmsg(data.c_str(), data.size(), flags);
     }
 
-    int64_t sendmsg(BytesArray data) {
-        return sendmsg(data.c_str(), data.size());
+    int64_t sendmsg(BytesArray data, int32_t flags = 0) {
+        return sendmsg(data.c_str(), data.size(), flags);
     }
 
-    int64_t send_file(std::ifstream& file) {
-        std::lock_guard lck(socket_table_mtx);
-        std::lock_guard lck1(socket_table.at(desc).sendMtx);
+    int64_t sendto(const void* buf, int64_t size, SocketAddress addr, int32_t flags = 0) {
+        if (addr.str_addr == "" && addr.addr_family == AF_INET) addr.str_addr = "127.0.0.1";
 
-        BytesArray buffer;
-        buffer.resize(256 * 1024);
-
-        int64_t size = 0;
-
-        while (file.tellg() != -1) {
-            file.read(buffer.data(), 256 * 1024);
-            size += send(buffer.c_str(), file.gcount());
-        }
-
-        return size;
-    }
-
-    int64_t sendto(const void* buf, int64_t size, std::string ipaddr, uint16_t port) {
-        if (ipaddr == "") ipaddr = "127.0.0.1";
-        sockaddr_in sock = make_sockaddr_in(ipaddr, port);
+        sockaddr_in sock = make_sockaddr_in({addr.str_addr, addr.port, getsockfamily()});
 
 #ifdef _WIN32
-        return ::sendto(desc, reinterpret_cast<const char*>(buf), size, MSG_CONFIRM, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in));
+        return ::sendto(desc, reinterpret_cast<const char*>(buf), size, flags, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in));
 #elif __linux__
-        return ::sendto(desc, buf, size, MSG_CONFIRM, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in));
+        return ::sendto(desc, buf, size, flags, reinterpret_cast<sockaddr*>(&sock), sizeof(sockaddr_in));
 #endif
 
         
     }
 
-    int64_t sendto(void* buf, int64_t size, SocketAddress addr) { return sendto(buf, size, addr.ip, addr.port); }
-
-    int64_t sendto(std::string buf, std::string ipaddr, uint16_t port) { return sendto(buf.c_str(), buf.size(), ipaddr, port); }
+    int64_t sendto(std::string buf, SocketAddress addr, int32_t flags = 0) { return sendto(buf.c_str(), buf.size(), addr, flags); }
     
-    int64_t sendto(MsgPacket buf, std::string ipaddr, uint16_t port) { return sendto(buf.c_str(), buf.size(), ipaddr, port); }
+    int64_t sendto(MsgPacket buf, SocketAddress addr, int32_t flags = 0) { return sendto(buf.c_str(), buf.size(), addr, flags); }
 
-    int64_t sendto(std::string buf, SocketAddress addr) { return sendto(buf.c_str(), buf.size(), addr.ip, addr.port); }
+    int64_t sendto(SocketData data, int32_t flags = 0) { return sendto(data.buffer.c_str(), data.buffer.size(), data.addr, flags); }
 
-    int64_t sendto(SocketData data) { return sendto(data.buffer.c_str(), data.buffer.size(), data.addr.ip, data.addr.port); }
-
-    SocketData recv(uint32_t size) {
+    SocketData recv(uint32_t size, int32_t flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).recvMtx);
 
         BytesArray buffer;
         buffer.resize(size);
 
-        int preverrno = errno;
+        int32_t preverrno = errno;
 
-        int64_t rsize = ::recv(desc, buffer.data(), size, 0);
+        int64_t rsize = ::recv(desc, buffer.data(), size, flags);
 
         if (rsize < 0 || (!rsize && isBlocking())) {
             errno = preverrno;
@@ -596,13 +578,13 @@ public:
         return data;
     }
 
-    SocketData recvall(uint32_t size) {
+    SocketData recvall(uint32_t size, int32_t flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).recvMtx);
 
         SocketData ret;
 
-        do ret.buffer.append(recv(size - ret.buffer.size()).buffer);
+        do ret.buffer.append(recv(size - ret.buffer.size(), flags).buffer);
         while (ret.buffer.size() < size && isWorking());
 
         ret.addr = socket_table.at(desc).raddress;
@@ -610,54 +592,39 @@ public:
         return ret;
     }
 
-    SocketData recvmsg() {
+    SocketData recvmsg(int32_t flags = 0) {
         std::lock_guard lck(socket_table_mtx);
         std::lock_guard lck1(socket_table.at(desc).recvMtx);
 
-        SocketData recvsize = recvall(sizeof(uint32_t));
+        SocketData recvsize = recvall(sizeof(uint32_t), flags);
 
         if (!recvsize.buffer.size()) {
             return {};
         }
 
-        SocketData ret = recvall(ntohl(*reinterpret_cast<const uint32_t*>(recvsize.buffer.c_str())));
+        SocketData ret = recvall(ntohl(*reinterpret_cast<const uint32_t*>(recvsize.buffer.c_str())), flags);
 
         return ret;
     }
 
-    std::optional<uint8_t> recvbyte() {
-        SocketData data = recvall(1);
+    template<class Int>
+    std::optional<Int> recvint(int32_t flags = 0) {
+        SocketData data = recvall(sizeof(Int));
 
-        if (data.buffer.size()) return data.buffer.front();
+        if (data.buffer.size() == sizeof(Int)) {
+            Int val = *reinterpret_cast<const Int*>(data.buffer.c_str());
 
-        return std::nullopt;
-    }
+            if (sizeof(Int) == 2) return ntohs(val);
+            else if (sizeof(Int) == 4) return ntohl(val);
+            else if (sizeof(Int) == 8) return ntohll(val);
 
-    std::optional<uint16_t> recvshort() {
-        SocketData data = recvall(2);
-
-        if (data.buffer.size() == 2) return ntohs(*reinterpret_cast<const uint16_t*>(data.buffer.c_str()));
-
-        return std::nullopt;
-    }
-
-    std::optional<uint32_t> recvint() {
-        SocketData data = recvall(4);
-
-        if (data.buffer.size() == 4) return ntohl(*reinterpret_cast<const uint32_t*>(data.buffer.c_str()));
+            return val;
+        }
 
         return std::nullopt;
     }
 
-    std::optional<uint64_t> recvlong() {
-        SocketData data = recvall(8);
-
-        if (data.buffer.size() == 8) return ntohll(*reinterpret_cast<const uint64_t*>(data.buffer.c_str()));
-
-        return std::nullopt;
-    }
-
-    SocketData recvfrom(int64_t size) {
+    SocketData recvfrom(int64_t size, int32_t flags = 0) {
         sockaddr_in sock;
         socklen_t len = sizeof(sockaddr_in);
 
@@ -669,10 +636,10 @@ public:
         BytesArray buffer;
         buffer.resize(size);
 
-        int preverrno = errno;
+        int32_t preverrno = errno;
         int64_t rsize = 0;
 
-        if ((rsize = ::recvfrom(desc, buffer.data(), size, _MSG_WAITALL, reinterpret_cast<sockaddr*>(&sock), &len)) < 0 || errno == 104) {
+        if ((rsize = ::recvfrom(desc, buffer.data(), size, flags, reinterpret_cast<sockaddr*>(&sock), &len)) < 0 || errno == 104) {
             errno = preverrno;
 
             return {};
@@ -688,7 +655,7 @@ public:
     uint32_t tcpRecvAvailable() const {
         uint32_t bytes_available;
 #ifdef _WIN32
-        ioctlsocket(desc, FIONREAD, reinterpret_cast<unsigned long*>(&bytes_available));
+        ioctlsocket(desc, FIONREAD, reinterpret_cast<uint64_t*>(&bytes_available));
 #else
         ioctl(desc, FIONREAD, &bytes_available);
 #endif
@@ -727,7 +694,6 @@ public:
         
 #ifdef _WIN32
         ::closesocket(desc);
-        ::WSACleanup();
 #elif __linux__
         ::close(desc);
 #endif
@@ -736,7 +702,7 @@ public:
     }
 };
 
-bool operator==(SocketAddress& arg1, SocketAddress& arg2) { return arg1.ip == arg2.ip && arg1.port == arg2.port; }
+bool operator==(SocketAddress& arg1, SocketAddress& arg2) { return arg1.str_addr == arg2.str_addr && arg1.port == arg2.port; }
 bool operator==(SocketData& arg1, SocketData& arg2) { return arg1.addr == arg2.addr && arg1.buffer == arg2.buffer; }
 bool operator==(Socket& arg1, Socket& arg2) { return arg1.fd() == arg2.fd(); }
 bool operator==(fd_t fd, Socket& arg2) { return fd == arg2.fd(); }
